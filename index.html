@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>食物銀行 | 用戶端</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <!-- 加入 JsBarcode 函式庫 -->
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+</head>
+<body>
+
+    <!-- 登入區塊 -->
+    <div id="loginSection" class="auth-wrapper">
+        <div class="auth-card">
+            <h2>會員登入</h2>
+            <p>請輸入您的電話號碼與密碼</p>
+            <form id="loginForm">
+                <div class="form-group">
+                    <label for="phoneInput">電話號碼</label>
+                    <input type="text" id="phoneInput" placeholder="例如: 0912345678" required>
+                </div>
+                <div class="form-group">
+                    <label for="passwordInput">密碼</label>
+                    <input type="password" id="passwordInput" placeholder="新用戶首次登入不需密碼">
+                </div>
+                <div id="loginError" style="color: var(--danger); font-size: 0.85rem; margin-bottom: 1rem; display: none;"></div>
+                <button type="submit" class="btn">登入</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- 首次登入設定(強制) -->
+    <div id="firstLoginSection" class="auth-wrapper hidden">
+        <div class="auth-card" style="max-width: 500px;">
+            <h2>首次登入資料設定</h2>
+            <p>為了確保您的權益，請完成以下資料設定</p>
+            <form id="firstLoginForm">
+                <div class="form-group">
+                    <label for="setupPassword">設定您的登入密碼 *</label>
+                    <input type="password" id="setupPassword" required minlength="6">
+                </div>
+                <div class="form-group">
+                    <label for="setupBirthday">出生年月日 (YYYY-MM-DD)</label>
+                    <input type="date" id="setupBirthday">
+                </div>
+                <div class="form-group">
+                    <label for="setupAddress">居住地址</label>
+                    <input type="text" id="setupAddress" placeholder="輸入聯絡地址">
+                </div>
+                <button type="submit" class="btn">完成設定並登入</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- 會員專區 (登入後顯示) -->
+    <div id="memberSection" class="app-container hidden">
+        
+        <!-- 用戶端側邊欄 -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                🌿 會員中心
+            </div>
+            <nav class="sidebar-nav">
+                <a class="nav-item active" href="javascript:void(0)" data-target="dashboardView">專屬兌換區</a>
+                <a class="nav-item" href="javascript:void(0)" data-target="profileView">個人資料設定</a>
+                <div style="margin-top: 2rem; padding: 0 1.5rem;">
+                    <button id="logoutBtn" class="btn btn-outline btn-sm">登出</button>
+                </div>
+            </nav>
+        </aside>
+
+        <main class="main-content">
+            <!-- 首頁 -->
+            <section id="dashboardView" class="view-section">
+                <div class="header-bar">
+                    <div>
+                        <h1 id="welcomeUser">歡迎</h1>
+                        <p style="color: var(--text-secondary);">出示下方條碼給工作人員進行兌換</p>
+                    </div>
+                </div>
+
+                <!-- 會員條碼區塊 -->
+                <div class="card" style="text-align: center;">
+                    <h3 style="margin-bottom: 1rem; color: var(--text-secondary);">您的專屬會員條碼</h3>
+                    <div class="barcode-wrapper">
+                        <svg id="memberBarcode"></svg>
+                    </div>
+                </div>
+
+                <div class="card" style="text-align: center; padding: 3rem 2rem;">
+                    <div class="stat-label">目前剩餘點數</div>
+                    <div class="stat-value" id="userPoints" style="font-size: 4rem;">0</div>
+                </div>
+
+                <div class="card">
+                    <h2 class="card-title">我的兌換紀錄</h2>
+                    <div class="table-responsive">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>兌換時間</th>
+                                    <th>兌換物品</th>
+                                    <th>扣除點數</th>
+                                </tr>
+                            </thead>
+                            <tbody id="userRedemptionHistory">
+                                <!-- 動態產生 -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 個人資料設定 -->
+            <section id="profileView" class="view-section hidden">
+                <div class="header-bar">
+                    <h2>個人資料設定</h2>
+                </div>
+                <div class="card" style="max-width: 600px;">
+                    <form id="profileForm">
+                        <div class="form-group">
+                            <label>會員姓名</label>
+                            <input type="text" id="profileName" disabled>
+                        </div>
+                        <div class="form-group">
+                            <label>電話號碼</label>
+                            <input type="text" id="profilePhone" disabled>
+                        </div>
+                        <div class="form-group">
+                            <label>重新設定密碼 (不更改請留白)</label>
+                            <input type="password" id="profilePassword" placeholder="輸入新密碼（留空則不更改）">
+                        </div>
+                        <div class="form-group">
+                            <label>出生年月日</label>
+                            <input type="date" id="profileBirthday">
+                        </div>
+                        <div class="form-group">
+                            <label>居住地址</label>
+                            <input type="text" id="profileAddress">
+                        </div>
+                        <button type="submit" class="btn">儲存更改</button>
+                    </form>
+                    <p id="profileSuccess" style="color: var(--success); display: none; margin-top: 1rem; font-weight: 500;">資料已更新！</p>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="data.js"></script>
+    <script src="app_client.js"></script>
+</body>
+</html>

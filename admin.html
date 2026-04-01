@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>食物銀行 | 管理後台</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+    <div class="app-container" id="adminAppSection">
+        <!-- 側邊欄 -->
+        <aside class="sidebar">
+            <div class="sidebar-header">🌱 食物銀行後台</div>
+            <nav class="sidebar-nav">
+                <a class="nav-item active" href="javascript:void(0)" data-target="dashboardView">📊 資料統計</a>
+                <a class="nav-item" href="javascript:void(0)" data-target="inventoryView">📦 庫存管理</a>
+                <a class="nav-item" href="javascript:void(0)" data-target="membersView">👥 會員管理</a>
+                <a class="nav-item" href="javascript:void(0)" data-target="redemptionsView">🛒 掃碼兌換作業</a>
+                <a class="nav-item" href="javascript:void(0)" data-target="dataView">🗂️ 資料管理</a>
+                 <div style="margin-top: 2rem; padding: 0 1.5rem; display: flex; flex-direction: column; gap: 0.5rem;">
+                    <button id="changeAdminPwdBtn" class="btn btn-outline btn-sm">🔑 修改管理員密碼</button>
+                    <button id="adminLogoutBtn" class="btn btn-outline btn-sm">登出後台</button>
+                </div>
+            </nav>
+        </aside>
+
+        <!-- 主要內容區 -->
+        <main class="main-content">
+            
+            <!-- 視圖: 資料統計 -->
+            <section id="dashboardView" class="view-section">
+                <div class="header-bar">
+                    <h2>資料統計</h2>
+                    <div class="report-tabs">
+                        <button class="report-tab active" data-report="overview">全覽</button>
+                        <button class="report-tab" data-report="yearly">年報</button>
+                        <button class="report-tab" data-report="monthly">月報</button>
+                        <button class="report-tab" data-report="daily">日報</button>
+                    </div>
+                </div>
+
+                <!-- 全覽 -->
+                <div id="reportOverview">
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-value" id="totalMembers">--</div>
+                            <div class="stat-label">總會員數</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="totalRedemptions">--</div>
+                            <div class="stat-label">累積兌換次數</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="totalPointsSpent">--</div>
+                            <div class="stat-label">已核銷總點數</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="lowStockCount" style="color: var(--danger);">--</div>
+                            <div class="stat-label">低庫存品項 (≤5件)</div>
+                        </div>
+                    </div>
+                    <div class="dashboard-charts">
+                        <div class="card">
+                            <h3 class="card-title">現有庫存分類佔比</h3>
+                            <div class="chart-container"><canvas id="invCategoryPieChart"></canvas></div>
+                        </div>
+                        <div class="card">
+                            <h3 class="card-title">全期各分類兌換量比重</h3>
+                            <div class="chart-container"><canvas id="redemptionPieChart"></canvas></div>
+                        </div>
+                        <div class="card">
+                            <h3 class="card-title">歷年兌換統計 (點數)</h3>
+                            <div class="chart-container"><canvas id="yearlyChart"></canvas></div>
+                        </div>
+                        <div class="card">
+                            <h3 class="card-title">本年度每月兌換趨勢 (次數)</h3>
+                            <div class="chart-container"><canvas id="monthlyChart"></canvas></div>
+                        </div>
+                    </div>
+
+                    <!-- RFM 會員活躍度分群 -->
+                    <div class="card" style="margin-top:1.5rem;">
+                        <h3 class="card-title">RFM 會員活躍度分群</h3>
+                        <div class="stats-grid" id="rfmStats" style="margin-bottom:1rem;"></div>
+                        <div class="chart-container" style="height:250px;"><canvas id="rfmPieChart"></canvas></div>
+                    </div>
+
+                    <!-- 點數異動紀錄 -->
+                    <div class="card" style="margin-top:1.5rem;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+                            <h3 class="card-title" style="margin-bottom:0;">點數異動紀錄</h3>
+                            <button class="btn btn-sm btn-outline" id="togglePointsLog">顯示全部</button>
+                        </div>
+                        <div class="table-responsive">
+                            <table>
+                                <thead><tr><th>時間</th><th>會員</th><th>異動點數</th><th>類型</th><th>備註</th></tr></thead>
+                                <tbody id="pointsLogTableBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 年報 -->
+                <div id="reportYearly" class="hidden">
+                    <div class="card" style="padding:1rem; margin-bottom:1.5rem; display:flex; align-items:center; gap:1rem; flex-wrap:wrap;">
+                        <label style="font-weight:500; white-space:nowrap;">選擇年份</label>
+                        <select id="yearReportSelect" style="width:auto; max-width:160px;"></select>
+                    </div>
+                    <div class="stats-grid" id="yearlyStats"></div>
+                    <div class="dashboard-charts">
+                        <div class="card">
+                            <h3 class="card-title">月度兌換趨勢 (次數)</h3>
+                            <div class="chart-container"><canvas id="yearMonthlyChart"></canvas></div>
+                        </div>
+                        <div class="card">
+                            <h3 class="card-title">年度分類兌換佔比</h3>
+                            <div class="chart-container"><canvas id="yearCatChart"></canvas></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 月報 -->
+                <div id="reportMonthly" class="hidden">
+                    <div class="card" style="padding:1rem; margin-bottom:1.5rem; display:flex; align-items:center; gap:1.5rem; flex-wrap:wrap;">
+                        <div style="display:flex; align-items:center; gap:0.5rem;">
+                            <label style="font-weight:500; white-space:nowrap;">年份</label>
+                            <select id="monthReportYear" style="width:auto; max-width:130px;"></select>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:0.5rem;">
+                            <label style="font-weight:500; white-space:nowrap;">月份</label>
+                            <select id="monthReportMonth" style="width:auto; max-width:100px;"></select>
+                        </div>
+                    </div>
+                    <div class="stats-grid" id="monthlyStats"></div>
+                    <div class="dashboard-charts">
+                        <div class="card">
+                            <h3 class="card-title">日兌換趨勢 (次數)</h3>
+                            <div class="chart-container"><canvas id="monthDailyChart"></canvas></div>
+                        </div>
+                        <div class="card">
+                            <h3 class="card-title">月度分類兌換佔比</h3>
+                            <div class="chart-container"><canvas id="monthCatChart"></canvas></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 日報 -->
+                <div id="reportDaily" class="hidden">
+                    <div class="card" style="padding:1rem; margin-bottom:1.5rem; display:flex; align-items:center; gap:1rem; flex-wrap:wrap;">
+                        <label style="font-weight:500; white-space:nowrap;">選擇日期</label>
+                        <input type="date" id="dailyReportDate" style="width:auto; max-width:200px;">
+                    </div>
+                    <div class="stats-grid" id="dailyStats"></div>
+                    <div class="card">
+                        <h3 class="card-title">小時兌換分佈</h3>
+                        <div class="chart-container"><canvas id="dailyHourChart"></canvas></div>
+                    </div>
+                    <div class="card" style="margin-top:1.5rem;">
+                        <h3 class="card-title">當日兌換明細</h3>
+                        <div class="table-responsive" style="max-height:300px; overflow-y:auto;">
+                            <table>
+                                <thead><tr><th>時間</th><th>會員</th><th>物品 (分類)</th><th>扣除點數</th></tr></thead>
+                                <tbody id="dailyDetailBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 視圖: 庫存管理 -->
+            <section id="inventoryView" class="view-section hidden">
+                <div class="header-bar">
+                    <h2>庫存管理</h2>
+                    <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                        <button class="btn btn-sm btn-outline" id="manageCategoryBtn">維護分類</button>
+                        <button class="btn btn-sm" id="batchInventoryBtn" style="background:#0284c7;">+ 開始批量掃描建檔入庫</button>
+                    </div>
+                </div>
+                
+                <div id="invSaveBar" class="save-bar hidden">
+                    <span>已修改 <strong><span id="invEditCount">0</span></strong> 個庫存項目，尚未儲存</span>
+                    <div style="display:flex; gap:0.5rem;">
+                        <button class="btn btn-sm btn-outline" id="invCancelAllBtn">全部取消</button>
+                        <button class="btn btn-sm" id="invSaveAllBtn">儲存全部變更</button>
+                    </div>
+                </div>
+
+                <div class="toolbar card" style="padding: 1rem;">
+                    <input type="text" id="invSearchInput" placeholder="🔍 搜尋條碼或名稱..." style="max-width: 300px;">
+                    <select id="invCategoryFilter" style="max-width: 200px;">
+                        <option value="all">所有分類</option>
+                    </select>
+                </div>
+
+                <div class="card table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>條碼</th>
+                                <th>名稱</th>
+                                <th>分類</th>
+                                <th>庫存量</th>
+                                <th>預設扣點</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="inventoryTableBody"></tbody>
+                    </table>
+                </div>
+
+                <!-- 庫存入庫歷史 -->
+                <div class="card">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+                        <h3 class="card-title" style="margin-bottom:0;">庫存入庫歷史</h3>
+                        <button class="btn btn-sm btn-outline" id="toggleInventoryLog">顯示全部</button>
+                    </div>
+                    <div class="table-responsive">
+                        <table>
+                            <thead><tr><th>時間</th><th>條碼</th><th>品項名稱</th><th>入庫數量</th><th>備註</th></tr></thead>
+                            <tbody id="inventoryLogTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 視圖: 會員管理 -->
+            <section id="membersView" class="view-section hidden">
+                <div class="header-bar">
+                    <h2>會員管理</h2>
+                    <div style="display:flex; gap:0.5rem;">
+                        <button class="btn btn-sm btn-outline" id="importMembersBtn">📥 匯入會員</button>
+                        <button class="btn btn-sm" id="addMemberBtn">+ 新增會員</button>
+                    </div>
+                </div>
+
+                <div id="memBatchBar" class="save-bar hidden" style="background:#f0fdf4; border-color:var(--success);">
+                    <span>已選取 <strong><span id="memBatchCount">0</span></strong> 位會員</span>
+                    <div style="display:flex; gap:0.5rem;">
+                        <button class="btn btn-sm btn-outline" id="memBatchClearBtn" style="border-color:var(--success); color:var(--success);">取消選取</button>
+                        <button class="btn btn-sm" id="memBatchTopupBtn" style="background:var(--success);">💰 批量補點</button>
+                    </div>
+                </div>
+
+                <div id="memSaveBar" class="save-bar hidden">
+                    <span>已修改 <strong><span id="memEditCount">0</span></strong> 位會員，尚未儲存</span>
+                    <div style="display:flex; gap:0.5rem;">
+                        <button class="btn btn-sm btn-outline" id="memCancelAllBtn">全部取消</button>
+                        <button class="btn btn-sm" id="memSaveAllBtn">儲存全部變更</button>
+                    </div>
+                </div>
+
+                <div class="toolbar card" style="padding: 1rem;">
+                    <input type="text" id="memSearchInput" placeholder="🔍 搜尋姓名、電話或條碼..." style="max-width: 300px;">
+                </div>
+
+                <div class="card table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th style="width:40px; text-align:center;"><input type="checkbox" id="selectAllMembers" style="width:auto;" title="全選 / 取消全選"></th>
+                                <th>會員條碼</th>
+                                <th>姓名</th>
+                                <th>電話</th>
+                                <th>狀態</th>
+                                <th>剩餘點數</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="membersTableBody"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- 視圖: 兌換作業 -->
+            <section id="redemptionsView" class="view-section hidden">
+                <div class="header-bar">
+                    <h2>批量掃碼兌換作業</h2>
+                </div>
+                
+                <div class="card" style="text-align:center; padding: 4rem 2rem;">
+                    <h3 style="margin-bottom: 1rem;">將游標準備好，並點擊下方按鈕開始作業</h3>
+                    <button class="btn" id="startRedeemBtn" style="max-width: 400px; padding: 1rem; font-size: 1.1rem; background: var(--success);">+ 開始多筆掃碼核銷</button>
+                </div>
+
+                <div class="card" style="margin-top:2rem;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; flex-wrap:wrap; gap:0.5rem;">
+                        <h3 class="card-title" style="margin-bottom:0;">核銷歷史</h3>
+                        <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
+                            <input type="text" id="redemptionSearchInput" placeholder="🔍 搜尋姓名或物品..." style="max-width:220px;">
+                            <button class="btn btn-sm btn-outline" id="toggleShowAllRedemptions">顯示全部</button>
+                        </div>
+                    </div>
+                    <div class="table-responsive">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>交易序號</th>
+                                    <th>兌換時間</th>
+                                    <th>會員姓名</th>
+                                    <th>兌換物品</th>
+                                    <th>扣除點數</th>
+                                </tr>
+                            </thead>
+                            <tbody id="redemptionTableBody"></tbody>
+                        </table>
+                    </div>
+                    <div id="redemptionCountInfo" style="margin-top:0.75rem; font-size:0.85rem; color:var(--text-secondary); text-align:right;"></div>
+                </div>
+            </section>
+            <!-- 視圖: 資料管理 -->
+            <section id="dataView" class="view-section hidden">
+                <div class="header-bar">
+                    <h2>資料管理</h2>
+                </div>
+
+                <!-- 匯出資料 -->
+                <div class="card">
+                    <h3 class="card-title">匯出資料 (CSV)</h3>
+                    <p style="color:var(--text-secondary); font-size:0.875rem; margin-bottom:1.5rem;">匯出的 CSV 檔案含 UTF-8 BOM，可直接用 Excel 或 Google 試算表開啟並正確顯示繁體中文。</p>
+                    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(190px, 1fr)); gap:1rem;">
+                        <div class="stat-card" style="display:flex; flex-direction:column; gap:0.75rem;">
+                            <div>
+                                <div style="font-weight:600; margin-bottom:0.25rem;">👥 會員清單</div>
+                                <div style="color:var(--text-secondary); font-size:0.8rem;">ID、姓名、電話、狀態、點數、加入日期等</div>
+                            </div>
+                            <button class="btn btn-sm btn-outline" id="exportMembersBtn">匯出 CSV</button>
+                        </div>
+                        <div class="stat-card" style="display:flex; flex-direction:column; gap:0.75rem;">
+                            <div>
+                                <div style="font-weight:600; margin-bottom:0.25rem;">🛒 兌換紀錄</div>
+                                <div style="color:var(--text-secondary); font-size:0.8rem;">所有核銷明細，含時間、物品、點數</div>
+                            </div>
+                            <button class="btn btn-sm btn-outline" id="exportRedemptionsBtn">匯出 CSV</button>
+                        </div>
+                        <div class="stat-card" style="display:flex; flex-direction:column; gap:0.75rem;">
+                            <div>
+                                <div style="font-weight:600; margin-bottom:0.25rem;">💰 點數異動紀錄</div>
+                                <div style="color:var(--text-secondary); font-size:0.8rem;">所有補點、扣點、兌換的完整明細</div>
+                            </div>
+                            <button class="btn btn-sm btn-outline" id="exportPointsLogBtn">匯出 CSV</button>
+                        </div>
+                        <div class="stat-card" style="display:flex; flex-direction:column; gap:0.75rem;">
+                            <div>
+                                <div style="font-weight:600; margin-bottom:0.25rem;">📥 入庫歷史</div>
+                                <div style="color:var(--text-secondary); font-size:0.8rem;">所有掃描入庫的操作紀錄</div>
+                            </div>
+                            <button class="btn btn-sm btn-outline" id="exportInventoryLogBtn">匯出 CSV</button>
+                        </div>
+                        <div class="stat-card" style="display:flex; flex-direction:column; gap:0.75rem;">
+                            <div>
+                                <div style="font-weight:600; margin-bottom:0.25rem;">📦 現有庫存</div>
+                                <div style="color:var(--text-secondary); font-size:0.8rem;">目前所有品項的庫存狀況快照</div>
+                            </div>
+                            <button class="btn btn-sm btn-outline" id="exportInventoryBtn">匯出 CSV</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 清除歷史資料 -->
+                <div class="card" style="border-color:#fca5a5;">
+                    <h3 class="card-title" style="color:var(--danger);">⚠️ 清除歷史資料</h3>
+                    <p style="color:var(--text-secondary); font-size:0.875rem; margin-bottom:1.5rem;">清除指定日期區間的歷史紀錄以釋放瀏覽器儲存空間。此操作<strong>不可復原</strong>，建議先匯出備份再執行。</p>
+
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-bottom:1.5rem; max-width:480px;">
+                        <div class="form-group" style="margin-bottom:0;">
+                            <label>起始日期（含當天）</label>
+                            <input type="date" id="clearStartDate">
+                        </div>
+                        <div class="form-group" style="margin-bottom:0;">
+                            <label>結束日期（含當天）</label>
+                            <input type="date" id="clearEndDate">
+                        </div>
+                    </div>
+
+                    <div style="margin-bottom:1.5rem;">
+                        <label style="display:block; font-size:0.875rem; font-weight:500; color:var(--text-secondary); margin-bottom:0.75rem;">選擇要清除的資料類型</label>
+                        <div style="display:flex; flex-wrap:wrap; gap:1.25rem;">
+                            <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer; font-weight:500;">
+                                <input type="checkbox" id="clearRedemptions" checked style="width:auto; accent-color:var(--primary-color);"> 兌換紀錄
+                            </label>
+                            <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer; font-weight:500;">
+                                <input type="checkbox" id="clearPointsLog" checked style="width:auto; accent-color:var(--primary-color);"> 點數異動紀錄
+                            </label>
+                            <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer; font-weight:500;">
+                                <input type="checkbox" id="clearInventoryLog" checked style="width:auto; accent-color:var(--primary-color);"> 入庫歷史
+                            </label>
+                        </div>
+                    </div>
+
+                    <div id="clearPreviewBox" class="hidden" style="background:#fef9c3; border:1px solid #fbbf24; border-radius:var(--radius); padding:1rem; margin-bottom:1.25rem; line-height:1.9;"></div>
+
+                    <div style="display:flex; gap:0.75rem; flex-wrap:wrap;">
+                        <button class="btn btn-sm btn-outline" id="previewClearBtn" style="border-color:var(--danger); color:var(--danger);">預覽將刪除的筆數</button>
+                        <button class="btn btn-sm btn-danger" id="confirmClearBtn">執行清除</button>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Modals -->
+
+    <!-- Modal: 維護分類 -->
+    <div class="modal-overlay" id="categoryModal">
+        <div class="modal-content" style="max-width: 520px;">
+            <div class="modal-header"><h3>庫存分類維護</h3><button class="close-btn" data-modal="categoryModal">&times;</button></div>
+            <ul id="categoryList" style="margin-bottom: 1rem; padding-left: 0;"></ul>
+            <form id="categoryForm" style="display:flex; gap:0.5rem;">
+                <input type="text" id="newCategoryName" placeholder="新分類名稱" required>
+                <button type="submit" class="btn btn-sm" style="white-space:nowrap;">新增</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: 新增/編輯會員 -->
+    <div class="modal-overlay" id="memberModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="memModalTitle">會員編輯</h3>
+                <button class="close-btn" data-modal="memberModal">&times;</button>
+            </div>
+            <form id="memberForm">
+                <input type="hidden" id="memId"><input type="hidden" id="memMode">
+                <div class="form-group"><label>姓名</label><input type="text" id="memName" required></div>
+                <div class="form-group"><label>電話 (綁定登入用)</label><input type="text" id="memPhone" required></div>
+                
+                <div id="memEditOnlySection" class="hidden">
+                    <div class="form-group"><label>剩餘點數</label><input type="number" id="memPoints" min="0"></div>
+                    <div class="form-group">
+                        <label>帳號狀態 (標示過期將無法登入)</label>
+                        <select id="memStatus">
+                            <option value="active">使用中 (Active)</option>
+                            <option value="expired">已過期停權 (Expired)</option>
+                        </select>
+                    </div>
+                </div>
+                <button type="submit" class="btn">儲存會員資料</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: 批量入庫/建檔 -->
+    <div class="modal-overlay" id="batchInventoryModal">
+        <div class="modal-content" style="max-width: 800px;">
+            <div class="modal-header">
+                <h3>📦 批量掃描入庫/建檔</h3>
+                <button class="close-btn" data-modal="batchInventoryModal">&times;</button>
+            </div>
+            
+            <div style="margin-bottom: 1rem; padding: 1rem; background: #e0f2fe; border-radius:var(--radius); border: 2px solid var(--primary-color);">
+                <label style="font-weight:600; font-size: 0.9rem; color: #0284c7; display:block; margin-bottom:0.5rem;">在此處連續刷入條碼</label>
+                <input type="text" id="batchInvScanner" class="scanner-input" placeholder="掃描條碼..." autocomplete="off">
+            </div>
+
+            <form id="batchInvForm">
+                <div class="table-responsive" style="max-height: 400px; overflow-y:auto; margin-bottom:1rem;">
+                    <table style="min-width: 700px;">
+                        <thead>
+                            <tr>
+                                <th>條碼</th>
+                                <th>名稱</th>
+                                <th>分類</th>
+                                <th>預設點數</th>
+                                <th style="width: 120px;">異動數量</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="batchInvTableBody">
+                            <!-- JS 動態插入列 -->
+                        </tbody>
+                    </table>
+                </div>
+                <button type="submit" class="btn" id="batchInvSubmitBtn" disabled>無資料可送出</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: 批量掃碼兌換 -->
+    <div class="modal-overlay" id="batchRedeemModal">
+        <div class="modal-content" style="max-width: 800px;">
+            <div class="modal-header">
+                <h3>🛒 多筆掃碼核銷作業</h3>
+                <button class="close-btn" data-modal="batchRedeemModal" id="closeRedeemBtn">&times;</button>
+            </div>
+            
+            <!-- Step 1: Member Scan -->
+            <div id="brStep1" style="margin-bottom: 1rem; padding: 1rem; background: #fef3c7; border-radius:var(--radius); border: 2px solid #f59e0b;">
+                <label style="font-weight:600; font-size: 0.9rem; color: #b45309; display:block; margin-bottom:0.5rem;">[步驟一] 請刷入會員條碼 (或輸入對應 ID/電話)</label>
+                <input type="text" id="brMemberScanner" class="scanner-input" style="border-color: #f59e0b; background: white;" placeholder="掃描會員..." autocomplete="off">
+            </div>
+
+            <!-- Step 2: Items Scan -->
+            <div id="brStep2" class="hidden" style="margin-bottom: 1rem; padding: 1rem; background: #d1fae5; border-radius:var(--radius); border: 2px solid var(--success);">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 0.5rem;">
+                    <div>
+                        <div id="brMemberDisplay" style="font-weight:600; font-size: 1.1rem; color: #065f46;"></div>
+                        <div id="brRunningBalance" style="font-size:0.875rem; margin-top:0.2rem; color:#065f46;"></div>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-outline" id="brChangeMemberBtn" style="border-color:#065f46; color:#065f46;">更換會員</button>
+                </div>
+                <label style="font-weight:600; font-size: 0.9rem; color: #065f46; display:block; margin-bottom:0.5rem;">[步驟二] 請連續刷入欲兌換之物品條碼</label>
+                <input type="text" id="brItemScanner" class="scanner-input" style="border-color: var(--success); background: white;" placeholder="掃描物品..." autocomplete="off">
+                <div id="brPointsWarning" class="hidden" style="background:#fee2e2; border:1px solid #fca5a5; border-radius:var(--radius); padding:0.6rem 1rem; margin-top:0.75rem; color:#991b1b; font-weight:500; font-size:0.9rem;"></div>
+            </div>
+
+            <form id="batchRedeemForm">
+                <div id="brClearAllRow" class="hidden" style="display:flex; justify-content:flex-end; margin-bottom:0.5rem;">
+                    <button type="button" class="btn btn-sm btn-outline" id="brClearAllBtn" style="border-color:var(--danger); color:var(--danger);">🗑️ 清空清單</button>
+                </div>
+                <div class="table-responsive hidden" id="brTableSection" style="max-height: 300px; overflow-y:auto; margin-bottom:1rem; border:1px solid var(--border-color);">
+                    <table>
+                        <thead><tr><th>條碼</th><th>名稱</th><th>庫存剩餘</th><th>扣除點數</th><th>操作</th></tr></thead>
+                        <tbody id="brTableBody"></tbody>
+                    </table>
+                </div>
+                <div id="brSummarySection" class="hidden" style="display:flex; justify-content:space-between; align-items:center; background: #f8fafc; padding:1rem; border-radius:var(--radius); margin-bottom:1rem;">
+                    <div>總計兌換: <strong id="brTotalCount" style="font-size:1.2rem; color:var(--primary-color);">0</strong> 件</div>
+                    <div>共需扣點: <strong id="brTotalPoints" style="font-size:1.5rem; color:var(--danger);">0</strong></div>
+                </div>
+                <button type="submit" class="btn hidden" id="batchRedeemSubmitBtn">確認扣點並送出核銷</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: 修改管理員密碼 -->
+    <div class="modal-overlay" id="changeAdminPwdModal">
+        <div class="modal-content" style="max-width: 420px;">
+            <div class="modal-header">
+                <h3>🔑 修改管理員密碼</h3>
+                <button class="close-btn" data-modal="changeAdminPwdModal">&times;</button>
+            </div>
+            <form id="changeAdminPwdForm">
+                <div class="form-group">
+                    <label>目前密碼</label>
+                    <input type="password" id="adminCurrentPwd" required placeholder="輸入目前密碼">
+                </div>
+                <div class="form-group">
+                    <label>新密碼</label>
+                    <input type="password" id="adminNewPwd" required minlength="6" placeholder="至少 6 個字元">
+                </div>
+                <div class="form-group">
+                    <label>確認新密碼</label>
+                    <input type="password" id="adminConfirmPwd" required placeholder="再次輸入新密碼">
+                </div>
+                <div id="adminPwdError" style="color: var(--danger); font-size: 0.85rem; margin-bottom: 1rem; display: none;"></div>
+                <div id="adminPwdSuccess" style="color: var(--success); font-size: 0.85rem; margin-bottom: 1rem; display: none;">密碼已成功更新！</div>
+                <button type="submit" class="btn">確認修改</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: 會員兌換紀錄 -->
+    <div class="modal-overlay" id="memberHistoryModal">
+        <div class="modal-content" style="max-width: 700px;">
+            <div class="modal-header">
+                <h3 id="memberHistoryTitle">兌換紀錄</h3>
+                <button class="close-btn" data-modal="memberHistoryModal">&times;</button>
+            </div>
+            <div class="table-responsive" style="max-height:450px; overflow-y:auto;">
+                <table>
+                    <thead>
+                        <tr><th>兌換時間</th><th>兌換物品</th><th>分類</th><th>扣除點數</th></tr>
+                    </thead>
+                    <tbody id="memberHistoryTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: 會員資料匯入 -->
+    <div class="modal-overlay" id="memberImportModal">
+        <div class="modal-content" style="max-width: 860px;">
+            <div class="modal-header">
+                <h3>📥 匯入會員資料</h3>
+                <button class="close-btn" data-modal="memberImportModal">&times;</button>
+            </div>
+
+            <div style="background:#eff6ff; border:1px solid var(--primary-color); border-radius:var(--radius); padding:0.85rem 1rem; margin-bottom:1.25rem; font-size:0.875rem; line-height:1.9;">
+                <strong>支援格式：</strong>與「匯出 → 會員清單」相同的 CSV（欄位：會員ID、姓名、電話、狀態、剩餘點數、加入日期、生日、地址、條碼）<br>
+                <code>姓名</code> 與 <code>電話</code> 為必要欄位；<code>會員ID</code> 留空時系統自動指派；其餘欄位留空套用預設值
+            </div>
+
+            <!-- 檔案選擇 + 模式 -->
+            <div style="display:flex; gap:2rem; flex-wrap:wrap; margin-bottom:1.25rem; align-items:flex-start;">
+                <div class="form-group" style="flex:1; min-width:220px; margin-bottom:0;">
+                    <label>選擇 CSV 檔案</label>
+                    <input type="file" id="importFileInput" accept=".csv" style="padding:0.5rem;">
+                </div>
+                <div>
+                    <label style="display:block; font-size:0.875rem; font-weight:500; color:var(--text-secondary); margin-bottom:0.6rem;">遇到已存在的會員 ID 時</label>
+                    <div style="display:flex; flex-direction:column; gap:0.5rem;">
+                        <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer; font-size:0.9rem; font-weight:500;">
+                            <input type="radio" name="importMode" value="add" checked style="width:auto;"> 跳過（僅新增）
+                        </label>
+                        <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer; font-size:0.9rem; font-weight:500;">
+                            <input type="radio" name="importMode" value="upsert" style="width:auto;"> 覆蓋更新（新增 + 更新現有）
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 錯誤訊息 -->
+            <div id="importError" class="hidden" style="background:#fee2e2; border:1px solid #fca5a5; border-radius:var(--radius); padding:0.75rem 1rem; margin-bottom:1rem; color:#991b1b; font-size:0.875rem;"></div>
+
+            <!-- 預覽表格 -->
+            <div id="importPreviewSection" class="hidden">
+                <div id="importSummary"></div>
+                <div class="table-responsive" style="max-height:320px; overflow-y:auto; border:1px solid var(--border-color); border-radius:var(--radius);">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th style="width:56px;">動作</th>
+                                <th>會員ID</th>
+                                <th>姓名</th>
+                                <th>電話</th>
+                                <th>點數</th>
+                                <th>備註</th>
+                            </tr>
+                        </thead>
+                        <tbody id="importPreviewBody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div style="display:flex; justify-content:flex-end; gap:0.75rem; margin-top:1.5rem;">
+                <button class="btn btn-outline" id="importCancelBtn">取消</button>
+                <button class="btn hidden" id="importConfirmBtn">確認匯入</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: 批量補點 -->
+    <div class="modal-overlay" id="batchTopupModal">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h3>💰 批量補點</h3>
+                <button class="close-btn" data-modal="batchTopupModal">&times;</button>
+            </div>
+            <div id="batchTopupInfo" style="background:#f0fdf4; border:1px solid var(--success); border-radius:var(--radius); padding:0.85rem 1rem; margin-bottom:1.25rem; font-size:0.875rem; line-height:1.8;"></div>
+            <form id="batchTopupForm">
+                <div class="form-group">
+                    <label>異動點數（正數補點 ＋，負數扣點 −）</label>
+                    <input type="number" id="batchTopupAmount" required placeholder="例如：500（補點）或 -100（扣點）">
+                </div>
+                <div class="form-group">
+                    <label>異動原因（必填，將記入點數 log）</label>
+                    <input type="text" id="batchTopupNote" required placeholder="例如：2026 Q2 補助點數">
+                </div>
+                <div id="batchTopupPreview" class="hidden" style="background:#eff6ff; border:1px solid var(--primary-color); border-radius:var(--radius); padding:0.75rem 1rem; margin-bottom:1rem; font-size:0.875rem;"></div>
+                <div id="batchTopupError" style="color:var(--danger); font-size:0.85rem; margin-bottom:1rem; display:none;"></div>
+                <button type="submit" class="btn" id="batchTopupSubmitBtn">確認執行</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: 確認清除歷史資料 -->
+    <div class="modal-overlay" id="clearDataModal">
+        <div class="modal-content" style="max-width: 480px;">
+            <div class="modal-header">
+                <h3 style="color:var(--danger);">⚠️ 確認清除資料</h3>
+                <button class="close-btn" data-modal="clearDataModal">&times;</button>
+            </div>
+            <div id="clearDataSummary" style="color:var(--text-secondary); line-height:1.9; margin-bottom:1.5rem;"></div>
+            <div class="form-group">
+                <label>請輸入「<strong>確認清除</strong>」以繼續執行</label>
+                <input type="text" id="clearConfirmInput" placeholder="確認清除" autocomplete="off">
+            </div>
+            <div style="display:flex; gap:0.75rem; margin-top:1.25rem;">
+                <button class="btn btn-outline" style="flex:1;" data-modal="clearDataModal" id="cancelClearModalBtn">取消</button>
+                <button class="btn btn-danger" id="executeClearBtn" style="flex:1;" disabled>確認清除</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="data.js"></script>
+    <script src="app_admin.js"></script>
+</body>
+</html>
