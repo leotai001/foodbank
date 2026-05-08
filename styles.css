@@ -424,3 +424,38 @@ tr:hover td {
     z-index: 10;
     box-shadow: var(--shadow-md);
 }
+
+/* Toast 通知 */
+.toast-host {
+    position: fixed;
+    top: 1.25rem;
+    right: 1.25rem;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    pointer-events: none;
+}
+.toast {
+    min-width: 240px;
+    max-width: 360px;
+    padding: 0.75rem 1rem;
+    border-radius: var(--radius);
+    color: white;
+    font-weight: 500;
+    box-shadow: var(--shadow-md);
+    opacity: 0;
+    transform: translateX(20px);
+    transition: opacity 0.2s ease, transform 0.2s ease;
+    pointer-events: auto;
+}
+.toast.toast-show { opacity: 1; transform: translateX(0); }
+.toast-success { background: var(--success); }
+.toast-info    { background: var(--primary-color); }
+.toast-warn    { background: #f59e0b; }
+.toast-error   { background: var(--danger); }
+
+@media (max-width: 768px) {
+    .toast-host { top: 0.5rem; right: 0.5rem; left: 0.5rem; }
+    .toast { min-width: 0; max-width: 100%; }
+}
