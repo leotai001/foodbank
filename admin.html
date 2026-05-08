@@ -20,8 +20,10 @@
                 <a class="nav-item" href="javascript:void(0)" data-target="membersView">👥 會員管理</a>
                 <a class="nav-item" href="javascript:void(0)" data-target="redemptionsView">🛒 掃碼兌換作業</a>
                 <a class="nav-item" href="javascript:void(0)" data-target="dataView">🗂️ 資料管理</a>
+                <a class="nav-item" href="javascript:void(0)" data-target="adminManageView" data-role-only="super">👤 管理員管理</a>
                  <div style="margin-top: 2rem; padding: 0 1.5rem; display: flex; flex-direction: column; gap: 0.5rem;">
-                    <button id="changeAdminPwdBtn" class="btn btn-outline btn-sm">🔑 修改管理員密碼</button>
+                    <div id="currentAdminInfo" style="font-size:0.8rem; color:var(--text-secondary); line-height:1.5; margin-bottom:0.25rem;"></div>
+                    <button id="changeMyPwdBtn" class="btn btn-outline btn-sm">🔑 修改密碼</button>
                     <button id="adminLogoutBtn" class="btn btn-outline btn-sm">登出後台</button>
                 </div>
             </nav>
@@ -39,6 +41,7 @@
                         <button class="report-tab" data-report="yearly">年報</button>
                         <button class="report-tab" data-report="monthly">月報</button>
                         <button class="report-tab" data-report="daily">日報</button>
+                        <button class="report-tab" data-report="custom">自訂</button>
                     </div>
                 </div>
 
@@ -60,6 +63,10 @@
                         <div class="stat-card">
                             <div class="stat-value" id="lowStockCount" style="color: var(--danger);">--</div>
                             <div class="stat-label">低庫存品項 (≤5件)</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="expiringCount" style="color: #d97706;">--</div>
+                            <div class="stat-label">30 天內到期品項</div>
                         </div>
                     </div>
                     <div class="dashboard-charts">
@@ -147,6 +154,32 @@
                     </div>
                 </div>
 
+                <!-- 自訂區間 -->
+                <div id="reportCustom" class="hidden">
+                    <div class="card" style="padding:1rem; margin-bottom:1.5rem; display:flex; align-items:center; gap:1rem; flex-wrap:wrap;">
+                        <div style="display:flex; align-items:center; gap:0.5rem;">
+                            <label style="font-weight:500; white-space:nowrap;">起始日</label>
+                            <input type="date" id="customReportStart" style="width:auto;">
+                        </div>
+                        <div style="display:flex; align-items:center; gap:0.5rem;">
+                            <label style="font-weight:500; white-space:nowrap;">結束日</label>
+                            <input type="date" id="customReportEnd" style="width:auto;">
+                        </div>
+                    </div>
+                    <div id="customReportError" style="background:#fee2e2; border:1px solid #fca5a5; border-radius:var(--radius); padding:0.75rem 1rem; margin-bottom:1rem; color:#991b1b; font-size:0.875rem; display:none;"></div>
+                    <div class="stats-grid" id="customStats"></div>
+                    <div class="dashboard-charts">
+                        <div class="card">
+                            <h3 class="card-title">區間每日兌換次數</h3>
+                            <div class="chart-container"><canvas id="customDailyChart"></canvas></div>
+                        </div>
+                        <div class="card">
+                            <h3 class="card-title">區間分類兌換佔比</h3>
+                            <div class="chart-container"><canvas id="customCatChart"></canvas></div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- 日報 -->
                 <div id="reportDaily" class="hidden">
                     <div class="card" style="padding:1rem; margin-bottom:1.5rem; display:flex; align-items:center; gap:1rem; flex-wrap:wrap;">
@@ -176,6 +209,7 @@
                     <h2>庫存管理</h2>
                     <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
                         <button class="btn btn-sm btn-outline" id="manageCategoryBtn">維護分類</button>
+                        <button class="btn btn-sm btn-outline" id="importInvBtn">📥 匯入庫存</button>
                         <button class="btn btn-sm" id="batchInventoryBtn" style="background:#0284c7;">+ 開始批量掃描建檔入庫</button>
                     </div>
                 </div>
@@ -204,6 +238,7 @@
                                 <th>分類</th>
                                 <th>庫存量</th>
                                 <th>預設扣點</th>
+                                <th>最近到期</th>
                                 <th>操作</th>
                             </tr>
                         </thead>
@@ -359,8 +394,55 @@
                     </div>
                 </div>
 
+                <!-- 操作審計紀錄（僅 super） -->
+                <div class="card" data-role-only="super" style="margin-top:1.5rem;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; gap:1rem; margin-bottom:1rem; flex-wrap:wrap;">
+                        <h3 class="card-title" style="margin-bottom:0;">📜 操作審計紀錄</h3>
+                        <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+                            <button class="btn btn-sm btn-outline" id="exportAuditLogBtn">匯出 CSV</button>
+                        </div>
+                    </div>
+                    <p style="color:var(--text-secondary); font-size:0.875rem; margin-bottom:1rem;">記錄所有管理員的關鍵操作（新增/編輯/刪除/批量處理/清除等）。</p>
+
+                    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(160px, 1fr)); gap:0.75rem; margin-bottom:1rem;">
+                        <div class="form-group" style="margin-bottom:0;">
+                            <label style="font-size:0.8rem;">起始日期</label>
+                            <input type="date" id="auditFilterStart">
+                        </div>
+                        <div class="form-group" style="margin-bottom:0;">
+                            <label style="font-size:0.8rem;">結束日期</label>
+                            <input type="date" id="auditFilterEnd">
+                        </div>
+                        <div class="form-group" style="margin-bottom:0;">
+                            <label style="font-size:0.8rem;">管理員</label>
+                            <select id="auditFilterAdmin"><option value="">全部</option></select>
+                        </div>
+                        <div class="form-group" style="margin-bottom:0;">
+                            <label style="font-size:0.8rem;">動作類型</label>
+                            <select id="auditFilterAction"><option value="">全部</option></select>
+                        </div>
+                        <div class="form-group" style="margin-bottom:0; grid-column: 1 / -1;">
+                            <label style="font-size:0.8rem;">關鍵字搜尋（搜對象、細節、管理員、動作）</label>
+                            <input type="text" id="auditFilterKeyword" placeholder="例如：M001、王大明、補點...">
+                        </div>
+                    </div>
+
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
+                        <small id="auditCountInfo" style="color:var(--text-secondary);">共 0 筆</small>
+                        <button class="btn btn-sm btn-outline" id="toggleAuditLog">顯示全部</button>
+                    </div>
+                    <div class="table-responsive">
+                        <table>
+                            <thead>
+                                <tr><th>時間</th><th>管理員</th><th>動作</th><th>對象</th><th>細節</th></tr>
+                            </thead>
+                            <tbody id="auditLogTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+
                 <!-- 清除歷史資料 -->
-                <div class="card" style="border-color:#fca5a5;">
+                <div class="card" data-role-only="super" style="border-color:#fca5a5;">
                     <h3 class="card-title" style="color:var(--danger);">⚠️ 清除歷史資料</h3>
                     <p style="color:var(--text-secondary); font-size:0.875rem; margin-bottom:1.5rem;">清除指定日期區間的歷史紀錄以釋放瀏覽器儲存空間。此操作<strong>不可復原</strong>，建議先匯出備份再執行。</p>
 
@@ -387,6 +469,9 @@
                             <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer; font-weight:500;">
                                 <input type="checkbox" id="clearInventoryLog" checked style="width:auto; accent-color:var(--primary-color);"> 入庫歷史
                             </label>
+                            <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer; font-weight:500;">
+                                <input type="checkbox" id="clearAuditLog" style="width:auto; accent-color:var(--primary-color);"> 操作審計紀錄
+                            </label>
                         </div>
                     </div>
 
@@ -395,6 +480,26 @@
                     <div style="display:flex; gap:0.75rem; flex-wrap:wrap;">
                         <button class="btn btn-sm btn-outline" id="previewClearBtn" style="border-color:var(--danger); color:var(--danger);">預覽將刪除的筆數</button>
                         <button class="btn btn-sm btn-danger" id="confirmClearBtn">執行清除</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 視圖: 管理員管理（僅 super） -->
+            <section id="adminManageView" class="view-section hidden">
+                <div class="header-bar">
+                    <h2>管理員管理</h2>
+                    <button class="btn btn-sm" id="addAdminBtn">+ 新增管理員</button>
+                </div>
+
+                <div class="card">
+                    <p style="color:var(--text-secondary); font-size:0.85rem; margin:0 0 1rem 0;">至少保留 1 位 super 管理員。無法刪除或停用自己。如需修改自己的密碼，請點側邊欄「🔑 修改密碼」。</p>
+                    <div class="table-responsive">
+                        <table>
+                            <thead>
+                                <tr><th>帳號</th><th>角色</th><th>狀態</th><th>最後登入</th><th>操作</th></tr>
+                            </thead>
+                            <tbody id="adminListTableBody"></tbody>
+                        </table>
                     </div>
                 </div>
             </section>
@@ -457,7 +562,7 @@
 
             <form id="batchInvForm">
                 <div class="table-responsive" style="max-height: 400px; overflow-y:auto; margin-bottom:1rem;">
-                    <table style="min-width: 700px;">
+                    <table style="min-width: 820px;">
                         <thead>
                             <tr>
                                 <th>條碼</th>
@@ -465,6 +570,7 @@
                                 <th>分類</th>
                                 <th>預設點數</th>
                                 <th style="width: 120px;">異動數量</th>
+                                <th style="width: 160px;">有效期 (選填)</th>
                                 <th>操作</th>
                             </tr>
                         </thead>
@@ -474,6 +580,98 @@
                     </table>
                 </div>
                 <button type="submit" class="btn" id="batchInvSubmitBtn" disabled>無資料可送出</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: 庫存 CSV 匯入 -->
+    <div class="modal-overlay" id="inventoryImportModal">
+        <div class="modal-content" style="max-width: 900px;">
+            <div class="modal-header">
+                <h3>📥 匯入庫存資料</h3>
+                <button class="close-btn" data-modal="inventoryImportModal">&times;</button>
+            </div>
+
+            <div style="background:#eff6ff; border:1px solid var(--primary-color); border-radius:var(--radius); padding:0.85rem 1rem; margin-bottom:1.25rem; font-size:0.875rem; line-height:1.9;">
+                <strong>支援格式：</strong>欄位「條碼、名稱、分類、庫存量、預設點數、有效期、批號」<br>
+                <code>條碼</code>、<code>名稱</code> 為必要欄位；<code>分類</code> 不存在時自動套用第一個分類；<code>有效期</code>（YYYY-MM-DD，選填）若有填會建立批號
+            </div>
+
+            <div style="display:flex; gap:2rem; flex-wrap:wrap; margin-bottom:1.25rem; align-items:flex-start;">
+                <div class="form-group" style="flex:1; min-width:220px; margin-bottom:0;">
+                    <label>選擇 CSV 檔案</label>
+                    <input type="file" id="importInvFileInput" accept=".csv" style="padding:0.5rem;">
+                </div>
+                <div>
+                    <label style="display:block; font-size:0.875rem; font-weight:500; color:var(--text-secondary); margin-bottom:0.6rem;">遇到已存在的條碼時</label>
+                    <div style="display:flex; flex-direction:column; gap:0.5rem;">
+                        <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer; font-size:0.9rem; font-weight:500;">
+                            <input type="radio" name="importInvMode" value="add" checked style="width:auto;"> 跳過（僅新增）
+                        </label>
+                        <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer; font-size:0.9rem; font-weight:500;">
+                            <input type="radio" name="importInvMode" value="upsert" style="width:auto;"> 覆蓋更新（新增 + 更新現有）
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <div id="importInvError" class="hidden" style="background:#fee2e2; border:1px solid #fca5a5; border-radius:var(--radius); padding:0.75rem 1rem; margin-bottom:1rem; color:#991b1b; font-size:0.875rem;"></div>
+
+            <div id="importInvPreviewSection" class="hidden">
+                <div id="importInvSummary"></div>
+                <div class="table-responsive" style="max-height:320px; overflow-y:auto; border:1px solid var(--border-color); border-radius:var(--radius);">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th style="width:56px;">動作</th>
+                                <th>條碼</th>
+                                <th>名稱</th>
+                                <th>分類</th>
+                                <th>庫存量</th>
+                                <th>有效期</th>
+                                <th>備註</th>
+                            </tr>
+                        </thead>
+                        <tbody id="importInvPreviewBody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div style="display:flex; justify-content:flex-end; gap:0.75rem; margin-top:1.5rem;">
+                <button class="btn btn-outline" id="importInvCancelBtn">取消</button>
+                <button class="btn hidden" id="importInvConfirmBtn">確認匯入</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: 批號管理 -->
+    <div class="modal-overlay" id="batchManageModal">
+        <div class="modal-content" style="max-width: 720px;">
+            <div class="modal-header">
+                <h3 id="batchManageTitle">批號管理</h3>
+                <button class="close-btn" data-modal="batchManageModal">&times;</button>
+            </div>
+            <p style="color:var(--text-secondary); font-size:0.85rem; margin-bottom:1rem;">啟用批號後，核銷會自動依「最早到期」優先扣除（FEFO）。批號數量加總即為庫存量。</p>
+
+            <div class="table-responsive" style="max-height:300px; overflow-y:auto; margin-bottom:1.25rem;">
+                <table>
+                    <thead>
+                        <tr><th>批號</th><th>有效期</th><th>數量</th><th>入庫時間</th><th>操作</th></tr>
+                    </thead>
+                    <tbody id="batchManageTableBody"></tbody>
+                </table>
+            </div>
+
+            <form id="batchManageNewForm" style="display:flex; gap:0.75rem; align-items:flex-end; padding:1rem; background:#f8fafc; border-radius:var(--radius); flex-wrap:wrap;">
+                <div class="form-group" style="margin-bottom:0;">
+                    <label style="font-size:0.8rem;">新增批號 — 數量</label>
+                    <input type="number" id="batchManageNewQty" min="1" placeholder="例如 10" style="width:100px;" required>
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                    <label style="font-size:0.8rem;">有效期 (選填)</label>
+                    <input type="date" id="batchManageNewExpiry" style="width:160px;">
+                </div>
+                <button type="submit" class="btn btn-sm">+ 新增批號</button>
             </form>
         </div>
     </div>
@@ -525,12 +723,12 @@
         </div>
     </div>
 
-    <!-- Modal: 修改管理員密碼 -->
-    <div class="modal-overlay" id="changeAdminPwdModal">
+    <!-- Modal: 修改我的密碼 -->
+    <div class="modal-overlay" id="changeMyPwdModal">
         <div class="modal-content" style="max-width: 420px;">
             <div class="modal-header">
-                <h3>🔑 修改管理員密碼</h3>
-                <button class="close-btn" data-modal="changeAdminPwdModal">&times;</button>
+                <h3>🔑 修改我的密碼</h3>
+                <button class="close-btn" data-modal="changeMyPwdModal">&times;</button>
             </div>
             <form id="changeAdminPwdForm">
                 <div class="form-group">
@@ -545,9 +743,47 @@
                     <label>確認新密碼</label>
                     <input type="password" id="adminConfirmPwd" required placeholder="再次輸入新密碼">
                 </div>
-                <div id="adminPwdError" style="color: var(--danger); font-size: 0.85rem; margin-bottom: 1rem; display: none;"></div>
-                <div id="adminPwdSuccess" style="color: var(--success); font-size: 0.85rem; margin-bottom: 1rem; display: none;">密碼已成功更新！</div>
+                <div id="adminPwdError" style="color:var(--danger); font-size:0.85rem; margin-bottom:1rem; display:none;"></div>
+                <div id="adminPwdSuccess" style="color:var(--success); font-size:0.85rem; margin-bottom:1rem; display:none;">密碼已成功更新！</div>
                 <button type="submit" class="btn">確認修改</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: 新增/編輯管理員 -->
+    <div class="modal-overlay" id="adminEditModal">
+        <div class="modal-content" style="max-width: 460px;">
+            <div class="modal-header">
+                <h3 id="adminEditTitle">新增管理員</h3>
+                <button class="close-btn" data-modal="adminEditModal">&times;</button>
+            </div>
+            <form id="adminEditForm">
+                <input type="hidden" id="adminEditId">
+                <div class="form-group">
+                    <label>帳號名稱</label>
+                    <input type="text" id="adminEditUsername" required autocomplete="off">
+                </div>
+                <div class="form-group">
+                    <label id="adminEditPwdLabel">密碼（至少 6 字元）</label>
+                    <input type="password" id="adminEditPassword" minlength="6" autocomplete="new-password">
+                    <small id="adminEditPwdHint" style="color:var(--text-secondary); font-size:0.75rem; display:none;">編輯時留空表示不修改密碼</small>
+                </div>
+                <div class="form-group">
+                    <label>角色</label>
+                    <select id="adminEditRole">
+                        <option value="staff">staff（一般操作）</option>
+                        <option value="super">super（含管理員管理與審計紀錄）</option>
+                    </select>
+                </div>
+                <div class="form-group" id="adminEditStatusGroup">
+                    <label>狀態</label>
+                    <select id="adminEditStatus">
+                        <option value="active">使用中</option>
+                        <option value="disabled">停用</option>
+                    </select>
+                </div>
+                <div id="adminEditError" style="color:var(--danger); font-size:0.85rem; margin-bottom:1rem; display:none;"></div>
+                <button type="submit" class="btn">儲存</button>
             </form>
         </div>
     </div>
@@ -676,6 +912,12 @@
     </div>
 
     <script src="data.js"></script>
-    <script src="app_admin.js"></script>
+    <script src="admin_core.js"></script>
+    <script src="admin_dashboard.js"></script>
+    <script src="admin_inventory.js"></script>
+    <script src="admin_members.js"></script>
+    <script src="admin_redemption.js"></script>
+    <script src="admin_data.js"></script>
+    <script src="admin_app.js"></script>
 </body>
 </html>

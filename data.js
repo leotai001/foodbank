@@ -3,11 +3,13 @@ const DB_MEMBERS_KEY = 'foodbank_members';
 const DB_REDEMPTIONS_KEY = 'foodbank_redemptions';
 const DB_INVENTORY_KEY = 'foodbank_inventory';
 const DB_CATEGORIES_KEY = 'foodbank_categories';
-const DB_ADMIN_KEY = 'foodbank_admin';
+const DB_ADMIN_KEY = 'foodbank_admin';            // legacy（單一管理員，僅供首次遷移讀取）
+const DB_ADMINS_KEY = 'foodbank_admins';          // 多管理員列表
 const DB_ADMIN_SESSION_KEY = 'foodbank_admin_session';
 const DB_POINTS_LOG_KEY = 'foodbank_points_log';
 const DB_INVENTORY_LOG_KEY = 'foodbank_inventory_log';
 const DB_CAT_COLORS_KEY = 'foodbank_cat_colors';
+const DB_AUDIT_LOG_KEY = 'foodbank_audit_log';    // 操作審計
 
 // 初始化假資料
 function initDB() {
@@ -42,9 +44,22 @@ function initDB() {
         localStorage.setItem(DB_REDEMPTIONS_KEY, JSON.stringify(initialRedemptions));
     }
 
-    // 管理員帳號（明文密碼在首次登入時自動升級為 hash）
-    if (!localStorage.getItem(DB_ADMIN_KEY)) {
-        localStorage.setItem(DB_ADMIN_KEY, JSON.stringify({ username: 'admin', password: 'admin123' }));
+    // 管理員列表（多管理員）：若為舊版單一 admin 則自動遷移成單一 super 管理員
+    if (!localStorage.getItem(DB_ADMINS_KEY)) {
+        const legacy = JSON.parse(localStorage.getItem(DB_ADMIN_KEY) || 'null');
+        const baseAdmin = legacy
+            ? { username: legacy.username, password: legacy.password }
+            : { username: 'admin', password: 'admin123' }; // 明文密碼在首次登入時自動升級為 hash
+        const initialAdmins = [{
+            id: 'A001',
+            username: baseAdmin.username,
+            password: baseAdmin.password,
+            role: 'super',
+            status: 'active',
+            createdAt: new Date().toISOString(),
+            lastLoginAt: null
+        }];
+        localStorage.setItem(DB_ADMINS_KEY, JSON.stringify(initialAdmins));
     }
 
     if (!localStorage.getItem(DB_POINTS_LOG_KEY)) {
@@ -55,6 +70,9 @@ function initDB() {
     }
     if (!localStorage.getItem(DB_CAT_COLORS_KEY)) {
         localStorage.setItem(DB_CAT_COLORS_KEY, JSON.stringify({}));
+    }
+    if (!localStorage.getItem(DB_AUDIT_LOG_KEY)) {
+        localStorage.setItem(DB_AUDIT_LOG_KEY, JSON.stringify([]));
     }
 }
 
@@ -80,6 +98,12 @@ function saveInventoryLog(log) { safeSetItem(DB_INVENTORY_LOG_KEY, JSON.stringif
 function getCatColors() { return JSON.parse(localStorage.getItem(DB_CAT_COLORS_KEY)) || {}; }
 function saveCatColors(c) { safeSetItem(DB_CAT_COLORS_KEY, JSON.stringify(c)); }
 
+function getAdmins() { return JSON.parse(localStorage.getItem(DB_ADMINS_KEY)) || []; }
+function saveAdmins(admins) { safeSetItem(DB_ADMINS_KEY, JSON.stringify(admins)); }
+
+function getAuditLog() { return JSON.parse(localStorage.getItem(DB_AUDIT_LOG_KEY)) || []; }
+function saveAuditLog(log) { safeSetItem(DB_AUDIT_LOG_KEY, JSON.stringify(log)); }
+
 // ---- Log Helpers ----
 function logPointChange(memberId, memberName, delta, type, note) {
     const log = getPointsLog();
@@ -91,6 +115,28 @@ function logInventoryChange(barcode, itemName, delta, note) {
     const log = getInventoryLog();
     log.push({ id: 'IL' + Date.now() + Math.random().toString(36).slice(2, 6), barcode, itemName, delta, note, date: new Date().toISOString() });
     saveInventoryLog(log);
+}
+
+// 操作審計：自動帶上目前登入管理員資訊；若 explicitAdmin 提供則覆蓋（用於登入流程，session 尚未建立）
+function logAdminAction(action, target = '', detail = '', explicitAdmin = null) {
+    let admin = explicitAdmin;
+    if (!admin) {
+        const session = JSON.parse(localStorage.getItem(DB_ADMIN_SESSION_KEY) || 'null');
+        if (!session || !session.adminId) return;
+        admin = getAdmins().find(a => a.id === session.adminId);
+        if (!admin) return;
+    }
+    const log = getAuditLog();
+    log.push({
+        id: 'AL' + Date.now() + Math.random().toString(36).slice(2, 6),
+        adminId: admin.id,
+        adminUsername: admin.username,
+        action,
+        target: target || '',
+        detail: detail || '',
+        date: new Date().toISOString()
+    });
+    saveAuditLog(log);
 }
 
 // ---- Utilities ----
@@ -156,41 +202,73 @@ async function loginUser(phone, password) {
 }
 
 async function loginAdmin(username, password) {
-    const adminData = JSON.parse(localStorage.getItem(DB_ADMIN_KEY));
-    if (!adminData || adminData.username !== username) {
-        return { success: false, msg: '管理員帳號或密碼錯誤' };
-    }
+    const admins = getAdmins();
+    const idx = admins.findIndex(a => a.username === username);
+    if (idx === -1) return { success: false, msg: '管理員帳號或密碼錯誤' };
+    const admin = admins[idx];
+    if (admin.status === 'disabled') return { success: false, msg: '此管理員帳號已停用' };
 
     let match;
-    if (isHashed(adminData.password)) {
-        match = adminData.password === await hashPassword(password);
+    if (isHashed(admin.password)) {
+        match = admin.password === await hashPassword(password);
     } else {
         // 舊版明文：驗證後自動升級為 hash
-        match = adminData.password === password;
+        match = admin.password === password;
         if (match) {
-            adminData.password = await hashPassword(password);
-            safeSetItem(DB_ADMIN_KEY, JSON.stringify(adminData));
+            admins[idx].password = await hashPassword(password);
+            saveAdmins(admins);
         }
     }
 
     if (!match) return { success: false, msg: '管理員帳號或密碼錯誤' };
-    return { success: true };
+    return { success: true, admin: admins[idx] };
 }
 
 // ---- Admin Session ----
-async function createAdminSession() {
+async function createAdminSession(admin) {
     const tokenBytes = crypto.getRandomValues(new Uint8Array(32));
     const token = Array.from(tokenBytes).map(b => b.toString(16).padStart(2, '0')).join('');
     const tokenHash = await hashPassword(token);
-    safeSetItem(DB_ADMIN_SESSION_KEY, tokenHash);
+    safeSetItem(DB_ADMIN_SESSION_KEY, JSON.stringify({
+        adminId: admin.id,
+        tokenHash,
+        createdAt: new Date().toISOString()
+    }));
+    // 更新 lastLoginAt
+    const admins = getAdmins();
+    const idx = admins.findIndex(a => a.id === admin.id);
+    if (idx !== -1) {
+        admins[idx].lastLoginAt = new Date().toISOString();
+        saveAdmins(admins);
+    }
     return token;
 }
 
 async function verifyAdminSession(token) {
     if (!token) return false;
-    const storedHash = localStorage.getItem(DB_ADMIN_SESSION_KEY);
-    if (!storedHash) return false;
-    return storedHash === await hashPassword(token);
+    const raw = localStorage.getItem(DB_ADMIN_SESSION_KEY);
+    if (!raw) return false;
+    let session;
+    try { session = JSON.parse(raw); } catch { return false; }
+    if (!session || !session.tokenHash || !session.adminId) return false;
+    if (session.tokenHash !== await hashPassword(token)) return false;
+    // 確認此 admin 仍存在且未被停用
+    const admin = getAdmins().find(a => a.id === session.adminId);
+    if (!admin || admin.status === 'disabled') return false;
+    return true;
+}
+
+function getCurrentAdmin() {
+    const raw = localStorage.getItem(DB_ADMIN_SESSION_KEY);
+    if (!raw) return null;
+    let session;
+    try { session = JSON.parse(raw); } catch { return null; }
+    if (!session || !session.adminId) return null;
+    const admin = getAdmins().find(a => a.id === session.adminId);
+    if (!admin) return null;
+    // 不回傳 password
+    const { password, ...rest } = admin;
+    return rest;
 }
 
 function clearAdminSession() {

@@ -50,8 +50,9 @@ document.addEventListener('DOMContentLoaded', () => {
         // 隱藏版管理員驗證
         const adminRes = await loginAdmin(phone, pwd);
         if (adminRes && adminRes.success) {
-            const token = await createAdminSession();
+            const token = await createAdminSession(adminRes.admin);
             sessionStorage.setItem('adminToken', token);
+            logAdminAction('LOGIN_SUCCESS', adminRes.admin.username, '從會員登入頁登入');
             window.location.href = 'admin.html';
             return;
         }
