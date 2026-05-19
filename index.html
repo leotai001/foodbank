@@ -64,6 +64,7 @@
             </div>
             <nav class="sidebar-nav">
                 <a class="nav-item active" href="javascript:void(0)" data-target="dashboardView">專屬兌換區</a>
+                <a class="nav-item" href="javascript:void(0)" data-target="pointsHistoryView">點數異動明細</a>
                 <a class="nav-item" href="javascript:void(0)" data-target="profileView">個人資料設定</a>
                 <div style="margin-top: 2rem; padding: 0 1.5rem;">
                     <button id="logoutBtn" class="btn btn-outline btn-sm">登出</button>
@@ -82,8 +83,8 @@
                 </div>
 
                 <!-- 會員條碼區塊 -->
-                <div class="card" style="text-align: center;">
-                    <h3 class="text-muted mb-md">您的專屬會員條碼</h3>
+                <div class="card" id="barcodeCard" style="text-align: center; cursor: pointer;" title="點擊放大顯示，方便工作人員掃描">
+                    <h3 class="text-muted mb-md">您的專屬會員條碼 <span class="text-xs">（點擊放大）</span></h3>
                     <div class="barcode-wrapper">
                         <svg id="memberBarcode"></svg>
                     </div>
@@ -113,6 +114,52 @@
                 </div>
             </section>
 
+            <!-- 點數異動明細 -->
+            <section id="pointsHistoryView" class="view-section hidden">
+                <div class="header-bar">
+                    <h2>點數異動明細</h2>
+                </div>
+                <div class="card">
+                    <p class="text-muted text-sm mb-md">顯示您近一年的點數變動紀錄，包含初始發放、補點、扣點、兌換核銷。可選擇特定月份查詢當月所有兌換明細。</p>
+
+                    <!-- 月份篩選 -->
+                    <div class="flex flex-wrap items-center gap-md mb-md">
+                        <label for="pointsMonthFilter" class="text-bold text-sm">月份篩選</label>
+                        <select id="pointsMonthFilter" style="max-width: 220px;"></select>
+                        <span id="pointsFilterInfo" class="text-muted text-xs"></span>
+                    </div>
+
+                    <div class="stats-grid mb-md">
+                        <div class="stat-card">
+                            <div class="stat-value text-success" id="userTotalTopup">0</div>
+                            <div class="stat-label" id="userTopupLabel">累積補點</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value text-danger" id="userTotalDeduct">0</div>
+                            <div class="stat-label" id="userDeductLabel">累積扣點 / 兌換</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value text-primary" id="userTotalChanges">0</div>
+                            <div class="stat-label" id="userChangesLabel">異動次數</div>
+                        </div>
+                    </div>
+                    <div class="table-responsive">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>時間</th>
+                                    <th>兌換物品</th>
+                                    <th>異動點數</th>
+                                    <th>類型</th>
+                                    <th>備註</th>
+                                </tr>
+                            </thead>
+                            <tbody id="userPointsHistory"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
             <!-- 個人資料設定 -->
             <section id="profileView" class="view-section hidden">
                 <div class="header-bar">
@@ -129,8 +176,12 @@
                             <input type="text" id="profilePhone" disabled>
                         </div>
                         <div class="form-group">
-                            <label>重新設定密碼 (不更改請留白)</label>
-                            <input type="password" id="profilePassword" placeholder="輸入新密碼（留空則不更改）">
+                            <label>目前密碼 <span class="text-muted text-xs">（要修改密碼時必填）</span></label>
+                            <input type="password" id="profileCurrentPassword" placeholder="輸入目前密碼以驗證身份" autocomplete="current-password">
+                        </div>
+                        <div class="form-group">
+                            <label>重新設定密碼 <span class="text-muted text-xs">（不更改請留白）</span></label>
+                            <input type="password" id="profilePassword" placeholder="輸入新密碼（至少 6 字元）" autocomplete="new-password">
                         </div>
                         <div class="form-group">
                             <label>出生年月日</label>
@@ -140,6 +191,7 @@
                             <label>居住地址</label>
                             <input type="text" id="profileAddress">
                         </div>
+                        <p id="profileError" class="text-danger text-sm mb-md" style="display: none; font-weight: 500;"></p>
                         <button type="submit" class="btn">儲存更改</button>
                     </form>
                     <p id="profileSuccess" class="text-success mt-md" style="display: none; font-weight: 500;">資料已更新！</p>

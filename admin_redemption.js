@@ -271,7 +271,7 @@ window.Rd = (function () {
                     pointsCost: item.pointsCost,
                     date: new Date().toISOString()
                 });
-                logPointChange(freshMember.id, freshMember.name, -item.pointsCost, 'redeem', `兌換：${item.name}`);
+                logPointChange(freshMember.id, freshMember.name, -item.pointsCost, 'redeem', '', { itemName: item.name, itemBarcode: item.barcode });
             });
 
             const memIdx = members.findIndex(x => x.id === freshMember.id);

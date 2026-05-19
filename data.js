@@ -134,9 +134,16 @@ function getAuditLog()         { return _readKey(DB_AUDIT_LOG_KEY, []); }
 function saveAuditLog(log)     { return _writeKey(DB_AUDIT_LOG_KEY, log); }
 
 // ---- Log Helpers ----
-function logPointChange(memberId, memberName, delta, type, note) {
+// extra 為可選的額外欄位（例如兌換時的 itemName / itemBarcode），合併進 log entry
+function logPointChange(memberId, memberName, delta, type, note, extra = null) {
     const log = getPointsLog();
-    log.push({ id: 'PL' + Date.now() + Math.random().toString(36).slice(2, 6), memberId, memberName, delta, type, note, date: new Date().toISOString() });
+    const entry = {
+        id: 'PL' + Date.now() + Math.random().toString(36).slice(2, 6),
+        memberId, memberName, delta, type, note,
+        date: new Date().toISOString()
+    };
+    if (extra && typeof extra === 'object') Object.assign(entry, extra);
+    log.push(entry);
     savePointsLog(log);
 }
 

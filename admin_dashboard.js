@@ -148,19 +148,30 @@ window.Dash = (function () {
         const tbody = document.getElementById('pointsLogTableBody');
         tbody.innerHTML = '';
         if (log.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:var(--text-secondary);">尚無點數異動紀錄</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:var(--text-secondary);">尚無點數異動紀錄</td></tr>';
             return;
         }
         const typeLabels = { init: '初始發放', topup: '補點', deduct: '扣點', redeem: '兌換核銷' };
         tbody.innerHTML = display.map(entry => {
             const color = entry.delta > 0 ? 'var(--success)' : 'var(--danger)';
             const sign  = entry.delta > 0 ? '+' : '';
+            // 兌換物品：新資料用 itemName 欄位，舊資料 fallback 從 note 內 "兌換：xxx" 解析
+            let itemName = entry.itemName || '';
+            let noteDisplay = entry.note || '';
+            if (!itemName && entry.type === 'redeem' && noteDisplay) {
+                const m = noteDisplay.match(/^兌換[:：]\s*(.+)$/);
+                if (m) { itemName = m[1]; noteDisplay = ''; }
+            }
+            const itemCell = itemName
+                ? `<strong>${escapeHtml(itemName)}</strong>`
+                : '<span style="color:var(--text-secondary);">—</span>';
             return `<tr>
                 <td><small style="color:var(--text-secondary);">${Core.fmtDisp(entry.date)}</small></td>
                 <td>${escapeHtml(entry.memberName || entry.memberId)}</td>
+                <td>${itemCell}</td>
                 <td><strong style="color:${color};">${sign}${entry.delta}</strong></td>
                 <td><span class="badge" style="background:#f1f5f9;color:#64748b;">${typeLabels[entry.type] || escapeHtml(entry.type)}</span></td>
-                <td style="color:var(--text-secondary); font-size:0.875rem;">${escapeHtml(entry.note || '')}</td>
+                <td style="color:var(--text-secondary); font-size:0.875rem;">${escapeHtml(noteDisplay)}</td>
             </tr>`;
         }).join('');
     }

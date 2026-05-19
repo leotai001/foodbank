@@ -261,9 +261,18 @@ window.DataMgr = (function () {
             const typeLabels = { init: '初始發放', topup: '補點', deduct: '扣點', redeem: '兌換核銷' };
             const rows = getPointsLog()
                 .sort((a, b) => new Date(a.date) - new Date(b.date))
-                .map(e => [e.id, Core.fmtDateTime(e.date), e.memberId, e.memberName || '', e.delta, typeLabels[e.type] || e.type, e.note || '']);
+                .map(e => {
+                    // 新資料：itemName 欄位；舊資料：從 note 內 "兌換：xxx" 解析
+                    let itemName = e.itemName || '';
+                    let noteOut = e.note || '';
+                    if (!itemName && e.type === 'redeem' && noteOut) {
+                        const m = noteOut.match(/^兌換[:：]\s*(.+)$/);
+                        if (m) { itemName = m[1]; noteOut = ''; }
+                    }
+                    return [e.id, Core.fmtDateTime(e.date), e.memberId, e.memberName || '', itemName, e.delta, typeLabels[e.type] || e.type, noteOut];
+                });
             Core.downloadCsv(`點數異動紀錄_${Core.todayStr()}.csv`,
-                ['記錄ID','時間','會員ID','會員姓名','異動點數','類型','備註'], rows);
+                ['記錄ID','時間','會員ID','會員姓名','兌換物品','異動點數','類型','備註'], rows);
         });
         document.getElementById('exportInventoryLogBtn').addEventListener('click', () => {
             const rows = getInventoryLog()
