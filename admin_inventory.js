@@ -6,9 +6,12 @@ window.Inv = (function () {
     let _importInvClassified = null;
 
     // ---- 公用：批號與庫存量同步 ----
-    // 規則：若 item.batches 存在且非空 → quantity 為各批號的加總；否則保留原 quantity
+    // 規則：若 item.batches 是陣列（含空）→ quantity 為各批號的加總（空陣列 → 0）；
+    //       若 item.batches 是 undefined → 保留原 quantity（純 quantity 管理模式）
+    // 修正先前 bug：批號全部消耗完（filter 後變空陣列）時，quantity 應同步為 0，
+    // 否則畫面顯示舊值會出現幽靈庫存
     function syncQuantity(item) {
-        if (Array.isArray(item.batches) && item.batches.length > 0) {
+        if (Array.isArray(item.batches)) {
             item.quantity = item.batches.reduce((s, b) => s + (parseInt(b.quantity, 10) || 0), 0);
         }
     }
@@ -258,7 +261,7 @@ window.Inv = (function () {
             html += `
                 <td>
                     <div style="font-size:0.75rem; color:var(--text-secondary); margin-bottom:0.2rem;">現有:${item.currentQty}</div>
-                    <input type="number" class="b-qty" data-idx="${idx}" value="${item.adjustQty}" style="width:80px;" required>
+                    <input type="number" class="b-qty" data-idx="${idx}" value="${item.adjustQty}" style="width:80px;" required min="1">
                 </td>
                 <td><input type="date" class="b-exp" data-idx="${idx}" value="${escapeHtml(item.expiryDate || '')}" style="width:140px;"></td>
                 <td><button type="button" class="btn btn-sm btn-danger b-del" data-idx="${idx}">刪除</button></td>
@@ -641,12 +644,16 @@ window.Inv = (function () {
                 if (i.expiryDate && !/^\d{4}-\d{2}-\d{2}$/.test(i.expiryDate)) {
                     Core.toast(`條碼 ${i.barcode} 的有效期格式錯誤`, 'error'); return;
                 }
+                // 入庫數量驗證：必須是 >= 1 的正整數，避免負數扣 quantity 但不動 batches 造成脫鉤
+                if (!Number.isFinite(i.adjustQty) || i.adjustQty < 1) {
+                    Core.toast(`條碼 ${i.barcode} 的入庫數量必須 ≥ 1（補貨流程不可填負數）`, 'error'); return;
+                }
             }
             const inv = getInventory();
             _batchInvList.forEach(item => {
                 if (item.isNew) {
                     const newItem = { barcode: item.barcode, name: item.name, category: item.category, pointsCost: item.pointsCost, quantity: item.adjustQty };
-                    if (item.expiryDate && item.adjustQty > 0) {
+                    if (item.expiryDate) {
                         newItem.batches = [{
                             batchId: 'B001',
                             quantity: item.adjustQty,
@@ -660,19 +667,16 @@ window.Inv = (function () {
                 } else {
                     const idx = inv.findIndex(x => x.barcode === item.barcode);
                     const target = inv[idx];
-                    if (item.expiryDate && item.adjustQty > 0) {
+                    // adjustQty 已驗證 ≥ 1
+                    if (item.expiryDate) {
                         addBatch(target, item.adjustQty, item.expiryDate);
                         logInventoryChange(item.barcode, item.name, item.adjustQty, `批號入庫（到期 ${item.expiryDate}）`);
+                    } else if (Array.isArray(target.batches) && target.batches.length > 0) {
+                        // 已有批號 → 新增無到期批號（保持批號與 quantity 同步）
+                        addBatch(target, item.adjustQty, '');
+                        logInventoryChange(item.barcode, item.name, item.adjustQty, '批量掃描補庫存（無到期批號）');
                     } else {
-                        // 無到期日 → 若已有批號，加入「無到期」批號；否則直接調整 quantity
-                        if (Array.isArray(target.batches) && target.batches.length > 0 && item.adjustQty > 0) {
-                            addBatch(target, item.adjustQty, '');
-                        } else if (item.adjustQty > 0) {
-                            target.quantity += item.adjustQty;
-                        } else {
-                            target.quantity += item.adjustQty;
-                            if (target.quantity < 0) target.quantity = 0;
-                        }
+                        target.quantity += item.adjustQty;
                         logInventoryChange(item.barcode, item.name, item.adjustQty, '批量掃描補庫存');
                     }
                 }

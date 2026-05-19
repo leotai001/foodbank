@@ -325,6 +325,33 @@ window.Core = (function () {
         resetIdleTimer();
     }
 
+    // ---- 跨分頁同步：另一分頁變動時提示重新整理（cache 已由 data.js 自動 invalidate）----
+    let _lastSyncToastAt = 0;
+    function setupCrossTabSync() {
+        window.addEventListener('storage', (e) => {
+            if (!e.key) {
+                toast('資料已在另一視窗大量變更，請重新整理頁面', 'warn', 6000);
+                return;
+            }
+            if (!e.key.startsWith('foodbank_')) return;
+            if (e.key === DB_ADMIN_SESSION_KEY) {
+                // session 變更：通常是另一分頁登出或登入。重新驗證自身 session。
+                verifyAdminSession(sessionStorage.getItem('adminToken')).then(valid => {
+                    if (!valid) {
+                        toast('您的登入狀態已失效，3 秒後跳回登入頁', 'warn', 3000);
+                        setTimeout(() => { window.location.href = 'index.html'; }, 3000);
+                    }
+                });
+                return;
+            }
+            // 一般資料變更：throttle 顯示提示
+            const now = Date.now();
+            if (now - _lastSyncToastAt < 2000) return;
+            _lastSyncToastAt = now;
+            toast('資料已在另一視窗變更，請重新整理以查看最新內容', 'warn', 6000);
+        });
+    }
+
     // ---- bootstrap ----
     async function bootstrap(onReady) {
         const adminToken = sessionStorage.getItem('adminToken');
@@ -337,6 +364,7 @@ window.Core = (function () {
         document.getElementById('adminLogoutBtn').addEventListener('click', () => logoutAndRedirect());
         renderCurrentAdminBadge();
         startIdleWatcher();
+        setupCrossTabSync();
 
         if (typeof onReady === 'function') onReady();
     }

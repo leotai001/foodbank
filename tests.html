@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>foodbank | 單元測試</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        body { padding: 2rem; max-width: 960px; margin: 0 auto; }
+        .test-row { padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border-color); display: flex; gap: 0.5rem; align-items: flex-start; }
+        .test-pass { color: var(--success); }
+        .test-fail { color: var(--danger); }
+        .test-group-title { font-weight: 600; margin: 1rem 0 0.25rem; color: var(--text-primary); }
+        .test-error { font-family: monospace; font-size: 0.8rem; color: var(--danger); margin-left: 1.5rem; }
+        #summary { padding: 1rem; border-radius: var(--radius); margin-bottom: 1.5rem; font-weight: 600; font-size: 1.1rem; }
+        #summary.all-pass { background: #d1fae5; color: #065f46; }
+        #summary.has-fail { background: #fee2e2; color: #991b1b; }
+        .icon { font-family: monospace; font-weight: bold; min-width: 1.2em; }
+    </style>
+</head>
+<body>
+    <h1>🧪 單元測試</h1>
+    <p class="text-muted text-sm mb-md">驗證 CSV 解析、密碼雜湊、FEFO 扣抵、cache 機制、localStorage 用量等純邏輯函式。執行不影響正式資料。</p>
+    <div id="summary">執行中…</div>
+    <div id="results"></div>
+
+    <!-- 載入核心邏輯（不會觸發 DOM init，因為 Core.bootstrap / Inv.init 等需手動呼叫） -->
+    <script src="data.js"></script>
+    <script src="admin_core.js"></script>
+    <script src="admin_inventory.js"></script>
+
+    <script>
+    (function () {
+        // ============ 測試框架 ============
+        const TEST_KEY_PREFIX = 'foodbank__test_';
+        const tests = []; // { group, name, fn }
+        let _currentGroup = '';
+
+        function describe(name, fn) {
+            const prev = _currentGroup;
+            _currentGroup = name;
+            fn();
+            _currentGroup = prev;
+        }
+        function it(name, fn) {
+            tests.push({ group: _currentGroup, name, fn });
+        }
+        function assertEq(actual, expected, msg) {
+            if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+                throw new Error(`${msg || 'assertEq'}\n  expected: ${JSON.stringify(expected)}\n  actual:   ${JSON.stringify(actual)}`);
+            }
+        }
+        function assertTrue(cond, msg) {
+            if (!cond) throw new Error(msg || 'assertTrue failed');
+        }
+        function assertFalse(cond, msg) {
+            if (cond) throw new Error(msg || 'assertFalse failed');
+        }
+
+        // ============ 測試案例 ============
+
+        describe('CSV 解析', () => {
+            it('基本：標題 + 兩列', () => {
+                const r = Core.parseCsvText('a,b,c\n1,2,3\n4,5,6');
+                assertEq(r, [{a:'1',b:'2',c:'3'},{a:'4',b:'5',c:'6'}]);
+            });
+            it('雙引號內含逗號', () => {
+                const r = Core.parseCsvText('a,b\n"1,2",3');
+                assertEq(r, [{a:'1,2', b:'3'}]);
+            });
+            it('雙引號內含換行（RFC 4180）', () => {
+                const r = Core.parseCsvText('a,b\n"line1\nline2",3');
+                assertEq(r, [{a:'line1\nline2', b:'3'}]);
+            });
+            it('雙引號逃逸（"" → "）', () => {
+                const r = Core.parseCsvText('a,b\n"he said ""hi""",2');
+                assertEq(r, [{a:'he said "hi"', b:'2'}]);
+            });
+            it('BOM 開頭去除', () => {
+                const BOM = String.fromCharCode(0xFEFF);
+                const r = Core.parseCsvText(BOM + 'a,b\n1,2');
+                assertEq(r, [{a:'1', b:'2'}]);
+            });
+            it('CRLF 換行', () => {
+                const r = Core.parseCsvText('a,b\r\n1,2\r\n3,4');
+                assertEq(r, [{a:'1',b:'2'},{a:'3',b:'4'}]);
+            });
+            it('結尾無換行也能解析最後一列', () => {
+                const r = Core.parseCsvText('a,b\n1,2');
+                assertEq(r, [{a:'1',b:'2'}]);
+            });
+            it('空白列略過', () => {
+                const r = Core.parseCsvText('a,b\n1,2\n\n3,4\n');
+                assertEq(r, [{a:'1',b:'2'},{a:'3',b:'4'}]);
+            });
+            it('只有標題列回傳空陣列', () => {
+                const r = Core.parseCsvText('a,b\n');
+                assertEq(r, []);
+            });
+            it('完全空字串回傳 null', () => {
+                const r = Core.parseCsvText('');
+                assertEq(r, null);
+            });
+        });
+
+        describe('密碼雜湊與驗證', () => {
+            it('salted hash 同密碼能驗證通過', async () => {
+                const stored = await hashPasswordSalted('mypass');
+                const { match } = await verifyStoredPassword('mypass', stored);
+                assertTrue(match);
+            });
+            it('salted hash 錯誤密碼被拒絕', async () => {
+                const stored = await hashPasswordSalted('mypass');
+                const { match } = await verifyStoredPassword('wrongpass', stored);
+                assertFalse(match);
+            });
+            it('兩次 hashPasswordSalted 同密碼結果不同（salt 隨機）', async () => {
+                const a = await hashPasswordSalted('mypass');
+                const b = await hashPasswordSalted('mypass');
+                assertTrue(a !== b);
+            });
+            it('salted hash 格式為 32hex$64hex', async () => {
+                const stored = await hashPasswordSalted('mypass');
+                assertTrue(/^[a-f0-9]{32}\$[a-f0-9]{64}$/.test(stored));
+            });
+            it('legacy 無 salt hash 仍可驗證且 needsUpgrade=true', async () => {
+                const unsalted = await hashPassword('mypass'); // 64-char hex
+                const { match, needsUpgrade } = await verifyStoredPassword('mypass', unsalted);
+                assertTrue(match);
+                assertTrue(needsUpgrade);
+            });
+            it('plaintext 仍可驗證且 needsUpgrade=true', async () => {
+                const { match, needsUpgrade } = await verifyStoredPassword('admin123', 'admin123');
+                assertTrue(match);
+                assertTrue(needsUpgrade);
+            });
+            it('plaintext 不符合也標記 needsUpgrade=false（沒成功就不升級）', async () => {
+                const { match, needsUpgrade } = await verifyStoredPassword('wrong', 'admin123');
+                assertFalse(match);
+                assertFalse(needsUpgrade);
+            });
+            it('空密碼 hash 為空字串', async () => {
+                const r = await hashPasswordSalted('');
+                assertEq(r, '');
+            });
+            it('isSaltedHash 與 isLegacyUnsaltedHash 判別正確', () => {
+                assertTrue(isLegacyUnsaltedHash('a'.repeat(64)));
+                assertFalse(isSaltedHash('a'.repeat(64)));
+                assertTrue(isSaltedHash('a'.repeat(32) + '$' + 'b'.repeat(64)));
+                assertFalse(isLegacyUnsaltedHash('a'.repeat(32) + '$' + 'b'.repeat(64)));
+                assertFalse(isHashed('plaintext'));
+            });
+        });
+
+        describe('FEFO 庫存扣抵', () => {
+            it('單一批號扣 1 件', () => {
+                const item = { quantity: 5, batches: [{ batchId: 'B001', quantity: 5, expiryDate: '2026-12-01' }] };
+                const ok = Inv.deductOne(item);
+                assertTrue(ok);
+                assertEq(item.quantity, 4);
+                assertEq(item.batches[0].quantity, 4);
+            });
+            it('多批號自動選最早到期', () => {
+                const item = {
+                    quantity: 10,
+                    batches: [
+                        { batchId: 'B001', quantity: 5, expiryDate: '2027-01-01' },
+                        { batchId: 'B002', quantity: 5, expiryDate: '2026-08-01' },
+                    ]
+                };
+                Inv.deductOne(item);
+                assertEq(item.batches.find(b => b.batchId === 'B002').quantity, 4);
+                assertEq(item.batches.find(b => b.batchId === 'B001').quantity, 5);
+            });
+            it('有到期 + 無到期批號 → 優先扣有到期', () => {
+                const item = {
+                    quantity: 5,
+                    batches: [
+                        { batchId: 'B001', quantity: 3, expiryDate: '' },
+                        { batchId: 'B002', quantity: 2, expiryDate: '2026-12-01' },
+                    ]
+                };
+                Inv.deductOne(item);
+                assertEq(item.batches.find(b => b.batchId === 'B002').quantity, 1);
+                assertEq(item.batches.find(b => b.batchId === 'B001').quantity, 3);
+            });
+            it('批號扣到 0 自動移除', () => {
+                const item = {
+                    quantity: 1,
+                    batches: [{ batchId: 'B001', quantity: 1, expiryDate: '2026-12-01' }]
+                };
+                Inv.deductOne(item);
+                assertEq(item.batches.length, 0);
+                assertEq(item.quantity, 0);
+            });
+            it('無批號時直接扣 quantity', () => {
+                const item = { quantity: 5 };
+                Inv.deductOne(item);
+                assertEq(item.quantity, 4);
+            });
+            it('quantity=0 回 false', () => {
+                const item = { quantity: 0 };
+                assertFalse(Inv.deductOne(item));
+            });
+            it('空批號陣列 + quantity > 0 → 扣 quantity', () => {
+                const item = { quantity: 3, batches: [] };
+                Inv.deductOne(item);
+                assertEq(item.quantity, 2);
+            });
+            it('所有批號 quantity=0 → 回 false', () => {
+                const item = {
+                    quantity: 0,
+                    batches: [{ batchId: 'B001', quantity: 0, expiryDate: '2026-12-01' }]
+                };
+                assertFalse(Inv.deductOne(item));
+            });
+        });
+
+        describe('Cache 層', () => {
+            const k = TEST_KEY_PREFIX + 'a';
+
+            it('write 後 read 從 cache 回傳', () => {
+                _writeKey(k, [1, 2, 3]);
+                assertEq(_readKey(k, []), [1, 2, 3]);
+                _writeKey(k, []); // cleanup
+                _invalidateCache(k);
+                localStorage.removeItem(k);
+            });
+
+            it('write 後 localStorage 也被更新', () => {
+                _writeKey(k, ['x']);
+                assertEq(JSON.parse(localStorage.getItem(k)), ['x']);
+                _invalidateCache(k);
+                localStorage.removeItem(k);
+            });
+
+            it('invalidate 後 read 重新從 localStorage 讀', () => {
+                _writeKey(k, [1]);
+                _invalidateCache(k);
+                localStorage.setItem(k, JSON.stringify([99])); // 繞過 cache 直寫
+                assertEq(_readKey(k, []), [99]);
+                _invalidateCache(k);
+                localStorage.removeItem(k);
+            });
+
+            it('read 不存在的 key 回傳 fallback', () => {
+                _invalidateCache(TEST_KEY_PREFIX + 'nope');
+                localStorage.removeItem(TEST_KEY_PREFIX + 'nope');
+                assertEq(_readKey(TEST_KEY_PREFIX + 'nope', ['default']), ['default']);
+            });
+
+            it('同個 key 讀兩次回傳同一 reference', () => {
+                _writeKey(k, [{ n: 1 }]);
+                const a = _readKey(k, []);
+                const b = _readKey(k, []);
+                assertTrue(a === b);
+                _invalidateCache(k);
+                localStorage.removeItem(k);
+            });
+
+            it('invalidate 無參數清掉所有 cache', () => {
+                _writeKey(TEST_KEY_PREFIX + 'x', [1]);
+                _writeKey(TEST_KEY_PREFIX + 'y', [2]);
+                _invalidateCache();
+                // 重新 read 應該從 localStorage 解析
+                assertEq(_readKey(TEST_KEY_PREFIX + 'x', []), [1]);
+                assertEq(_readKey(TEST_KEY_PREFIX + 'y', []), [2]);
+                _invalidateCache();
+                localStorage.removeItem(TEST_KEY_PREFIX + 'x');
+                localStorage.removeItem(TEST_KEY_PREFIX + 'y');
+            });
+        });
+
+        describe('localStorage 用量計算', () => {
+            it('回傳結構欄位齊全', () => {
+                const u = getLocalStorageUsage();
+                assertTrue(typeof u.bytes === 'number');
+                assertTrue(typeof u.keys === 'number');
+                assertTrue(typeof u.mb === 'number');
+                assertTrue(typeof u.limitMb === 'number');
+                assertTrue(typeof u.pct === 'number');
+            });
+            it('bytes 與 mb 換算一致', () => {
+                const u = getLocalStorageUsage();
+                assertEq(u.mb, u.bytes / (1024 * 1024));
+            });
+            it('pct 在 0 與 1 之間（健康狀態下）', () => {
+                const u = getLocalStorageUsage();
+                assertTrue(u.pct >= 0);
+                assertTrue(u.pct <= 1);
+            });
+            it('只計算 foodbank_ 前綴', () => {
+                localStorage.setItem('NOT_FOODBANK_TEST', 'x'.repeat(1000));
+                const u1 = getLocalStorageUsage();
+                localStorage.removeItem('NOT_FOODBANK_TEST');
+                const u2 = getLocalStorageUsage();
+                assertEq(u1.bytes, u2.bytes); // 增加非 foodbank_ key 不影響統計
+            });
+        });
+
+        describe('CSV escape / download API', () => {
+            it('escapeCsvCell：含逗號加雙引號', () => {
+                assertEq(Core.escapeCsvCell('a,b'), '"a,b"');
+            });
+            it('escapeCsvCell：含雙引號加倍', () => {
+                assertEq(Core.escapeCsvCell('he said "hi"'), '"he said ""hi"""');
+            });
+            it('escapeCsvCell：含換行加雙引號', () => {
+                assertEq(Core.escapeCsvCell('a\nb'), '"a\nb"');
+            });
+            it('escapeCsvCell：純文字不加引號', () => {
+                assertEq(Core.escapeCsvCell('hello'), 'hello');
+            });
+            it('escapeCsvCell：null / undefined → 空字串', () => {
+                assertEq(Core.escapeCsvCell(null), '');
+                assertEq(Core.escapeCsvCell(undefined), '');
+            });
+        });
+
+        describe('escapeHtml', () => {
+            it('< > & " \' 全部跳脫', () => {
+                assertEq(escapeHtml('<script>alert("xss")</script>'),
+                    '&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;');
+            });
+            it('null / undefined → 空字串', () => {
+                assertEq(escapeHtml(null), '');
+                assertEq(escapeHtml(undefined), '');
+            });
+            it('純文字不變', () => {
+                assertEq(escapeHtml('王大明'), '王大明');
+            });
+        });
+
+        // ============ 執行 ============
+        async function run() {
+            const results = [];
+            let passed = 0, failed = 0;
+            for (const t of tests) {
+                try {
+                    await t.fn();
+                    results.push({ ...t, pass: true });
+                    passed++;
+                } catch (e) {
+                    results.push({ ...t, pass: false, error: e.message });
+                    failed++;
+                }
+            }
+            const summary = document.getElementById('summary');
+            summary.className = failed === 0 ? 'all-pass' : 'has-fail';
+            summary.textContent = failed === 0
+                ? `✅ 全數通過：${passed} 個測試`
+                : `❌ 失敗 ${failed} / 通過 ${passed}（共 ${tests.length} 個測試）`;
+
+            // 依 group 整理輸出
+            const html = [];
+            let lastGroup = null;
+            for (const r of results) {
+                if (r.group !== lastGroup) {
+                    html.push(`<div class="test-group-title">📂 ${r.group}</div>`);
+                    lastGroup = r.group;
+                }
+                html.push(`<div class="test-row">
+                    <span class="icon ${r.pass ? 'test-pass' : 'test-fail'}">${r.pass ? '✓' : '✗'}</span>
+                    <div style="flex:1;">
+                        <div class="${r.pass ? '' : 'test-fail'}">${r.name}</div>
+                        ${r.pass ? '' : `<pre class="test-error">${r.error.replace(/</g, '&lt;')}</pre>`}
+                    </div>
+                </div>`);
+            }
+            document.getElementById('results').innerHTML = html.join('');
+        }
+        run();
+    })();
+    </script>
+</body>
+</html>

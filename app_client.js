@@ -2,6 +2,29 @@ document.addEventListener('DOMContentLoaded', () => {
     const loginSection = document.getElementById('loginSection');
     const firstLoginSection = document.getElementById('firstLoginSection');
     const memberSection = document.getElementById('memberSection');
+
+    // 條碼 RWD：依視窗寬度動態調整 width，避免長條碼在手機被截斷
+    let _currentBarcodeValue = null;
+    function renderMemberBarcode(barcodeStr) {
+        const vw = window.innerWidth;
+        const width = vw < 480 ? 1.2 : vw < 768 ? 1.6 : 2;
+        JsBarcode('#memberBarcode', barcodeStr, {
+            format: 'CODE128',
+            width,
+            height: 60,
+            displayValue: true,
+            margin: 0
+        });
+    }
+    let _resizeBarcodeT = null;
+    window.addEventListener('resize', () => {
+        clearTimeout(_resizeBarcodeT);
+        _resizeBarcodeT = setTimeout(() => {
+            if (_currentBarcodeValue && !memberSection.classList.contains('hidden')) {
+                renderMemberBarcode(_currentBarcodeValue);
+            }
+        }, 150);
+    });
     
     // Login
     const loginForm = document.getElementById('loginForm');
@@ -103,6 +126,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('logoutBtn').addEventListener('click', () => {
         sessionStorage.removeItem('currentClientUser');
+        _currentBarcodeValue = null;
         memberSection.classList.add('hidden');
         firstLoginSection.classList.add('hidden');
         loginSection.classList.remove('hidden');
@@ -128,14 +152,9 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('welcomeUser').textContent = `歡迎，${user.name}`;
         document.getElementById('userPoints').textContent = user.points.toLocaleString();
         
-        // Generate Barcode
-        JsBarcode("#memberBarcode", user.barcode, {
-            format: "CODE128",
-            width: 2,
-            height: 60,
-            displayValue: true,
-            margin: 0
-        });
+        // Generate Barcode（依視窗寬度自適應）
+        _currentBarcodeValue = user.barcode;
+        renderMemberBarcode(user.barcode);
 
         // Profile Info
         document.getElementById('profileName').value = user.name;

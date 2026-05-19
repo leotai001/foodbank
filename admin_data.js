@@ -204,7 +204,37 @@ window.DataMgr = (function () {
         setTimeout(() => usernameInput.focus(), 50);
     }
 
+    function renderStorageUsage() {
+        const u = getLocalStorageUsage();
+        const pct = Math.min(1, u.pct);
+        const pctDisp = (pct * 100).toFixed(1);
+        const mbDisp  = u.mb.toFixed(2);
+
+        const fill = document.getElementById('storageUsageFill');
+        const text = document.getElementById('storageUsageText');
+        if (!fill || !text) return;
+
+        fill.style.width = `${pctDisp}%`;
+        // 顏色：< 60% 綠、60–80% 橘、> 80% 紅
+        let color = 'var(--success)';
+        let hintText = '';
+        if (pct >= 0.8) {
+            color = 'var(--danger)';
+            hintText = '⚠️ 已超過 80%，建議立即匯出備份並清除歷史資料';
+        } else if (pct >= 0.6) {
+            color = '#f59e0b';
+            hintText = '⚠️ 已超過 60%，建議匯出備份';
+        }
+        fill.style.background = color;
+
+        text.innerHTML = `已使用 <strong>${mbDisp} MB</strong> / ${u.limitMb.toFixed(0)} MB（${pctDisp}%，共 ${u.keys} 個資料表）`
+            + (hintText ? `<br><span class="text-warn text-xs">${hintText}</span>` : '');
+    }
+
     function init() {
+        // ---- localStorage 用量 ----
+        document.getElementById('refreshStorageUsageBtn').addEventListener('click', renderStorageUsage);
+
         // ---- CSV 匯出 ----
         document.getElementById('exportMembersBtn').addEventListener('click', () => {
             const members = getMembers();
@@ -494,5 +524,5 @@ window.DataMgr = (function () {
         });
     }
 
-    return { init, renderAuditLog, renderAdminList, renderAdminManagePage };
+    return { init, renderAuditLog, renderAdminList, renderAdminManagePage, renderStorageUsage };
 })();

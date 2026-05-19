@@ -169,6 +169,29 @@ function logAdminAction(action, target = '', detail = '', explicitAdmin = null) 
 }
 
 // ---- Utilities ----
+
+// 估算 foodbank_* 在 localStorage 的用量
+// 註：localStorage 內部以 UTF-16 儲存，每字元 2 bytes；不同瀏覽器上限不同（多數 5 MB / origin）
+const LOCAL_STORAGE_LIMIT_BYTES = 5 * 1024 * 1024;
+function getLocalStorageUsage() {
+    let bytes = 0;
+    let keys = 0;
+    for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (!key || !key.startsWith('foodbank_')) continue;
+        const val = localStorage.getItem(key) || '';
+        bytes += (key.length + val.length) * 2;
+        keys++;
+    }
+    return {
+        bytes,
+        keys,
+        mb: bytes / (1024 * 1024),
+        limitMb: LOCAL_STORAGE_LIMIT_BYTES / (1024 * 1024),
+        pct: bytes / LOCAL_STORAGE_LIMIT_BYTES
+    };
+}
+
 function safeSetItem(key, value) {
     try {
         localStorage.setItem(key, value);
@@ -340,6 +363,21 @@ function getCurrentAdmin() {
 
 function clearAdminSession() {
     localStorage.removeItem(DB_ADMIN_SESSION_KEY);
+}
+
+// 跨分頁同步：另一分頁變更 localStorage 時 invalidate 對應 cache key
+// 註：storage 事件只在「其他分頁」變更時觸發，當前分頁的變更不會觸發
+if (typeof window !== 'undefined' && window.addEventListener) {
+    window.addEventListener('storage', (e) => {
+        if (!e.key) {
+            // null key 表示 localStorage.clear() 被呼叫
+            _invalidateCache();
+            return;
+        }
+        if (e.key.startsWith('foodbank_')) {
+            _invalidateCache(e.key);
+        }
+    });
 }
 
 initDB();

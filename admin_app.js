@@ -12,7 +12,10 @@ document.addEventListener('DOMContentLoaded', () => {
         Core.setupNavigation({
             dashboardView:    () => Dash.renderActiveReport(),
             inventoryView:    () => Inv.renderInventoryLog(),
-            dataView:         () => { if (Core.isSuper()) DataMgr.renderAuditLog(); },
+            dataView:         () => {
+                DataMgr.renderStorageUsage();
+                if (Core.isSuper()) DataMgr.renderAuditLog();
+            },
             adminManageView:  () => DataMgr.renderAdminManagePage()
         });
 
@@ -32,6 +35,7 @@ document.addEventListener('DOMContentLoaded', () => {
         Dash.render();
 
         Core.applyRoleVisibility();
+        DataMgr.renderStorageUsage();
         if (Core.isSuper()) DataMgr.renderAuditLog();
     });
 });
