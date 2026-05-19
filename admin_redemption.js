@@ -3,7 +3,6 @@ window.Rd = (function () {
     const _redeemTargetMember = { lock: null };
     let _batchRedeemList = [];
     let _redemptionShowAll = false;
-    let _debounceT = null;
 
     function resetBatchRedeem() {
         _redeemTargetMember.lock = null;
@@ -136,8 +135,8 @@ window.Rd = (function () {
             document.getElementById('brItemScanner').focus();
         });
 
-        document.getElementById('brClearAllBtn').addEventListener('click', () => {
-            if (!confirm(`確定要清空清單中的 ${_batchRedeemList.length} 件物品嗎？`)) return;
+        document.getElementById('brClearAllBtn').addEventListener('click', async () => {
+            if (!await Core.confirm(`確定要清空清單中的 ${_batchRedeemList.length} 件物品嗎？`, { title: '清空清單', confirmText: '清空', type: 'danger' })) return;
             _batchRedeemList = [];
             renderBatchRedeemTable();
             document.getElementById('brItemScanner').focus();
@@ -177,23 +176,19 @@ window.Rd = (function () {
         });
 
         document.getElementById('brItemScanner').addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                const code = e.target.value.trim();
-                e.target.value = '';
-                if (!code) return;
-                clearTimeout(_debounceT);
-                _debounceT = setTimeout(() => {
-                    const i = getInventory().find(x => x.barcode === code);
-                    if (!i) { Core.toast('查無此物品條碼', 'error'); return; }
-                    const existsCount = _batchRedeemList.filter(x => x.barcode === code).length;
-                    if (existsCount + 1 > i.quantity) {
-                        Core.toast(`【${i.name}】庫存不足`, 'error'); return;
-                    }
-                    _batchRedeemList.push(i);
-                    renderBatchRedeemTable();
-                }, 50);
+            if (e.key !== 'Enter') return;
+            e.preventDefault();
+            const code = e.target.value.trim();
+            e.target.value = '';
+            if (!code) return;
+            const i = getInventory().find(x => x.barcode === code);
+            if (!i) { Core.toast('查無此物品條碼', 'error'); return; }
+            const existsCount = _batchRedeemList.filter(x => x.barcode === code).length;
+            if (existsCount + 1 > i.quantity) {
+                Core.toast(`【${i.name}】庫存不足`, 'error'); return;
             }
+            _batchRedeemList.push(i);
+            renderBatchRedeemTable();
         });
 
         document.getElementById('redemptionSearchInput').addEventListener('input', renderHistory);
@@ -206,14 +201,50 @@ window.Rd = (function () {
         // 送出核銷
         document.getElementById('batchRedeemForm').addEventListener('submit', (e) => {
             e.preventDefault();
-            const member = _redeemTargetMember.lock;
+            if (!_redeemTargetMember.lock || _batchRedeemList.length === 0) return;
             const totalPts = _batchRedeemList.reduce((sum, item) => sum + item.pointsCost, 0);
-            if (member.points < totalPts) return;
 
+            // 送出當下重讀最新資料（避免另一個分頁同時修改 / 自開啟 modal 後資料變動）
+            const members   = getMembers();
+            const inventory = getInventory();
             const redemptions = getRedemptions();
-            const inventory   = getInventory();
-            const members     = getMembers();
+            const freshMember = members.find(x => x.id === _redeemTargetMember.lock.id);
+
+            if (!freshMember) {
+                Core.toast('找不到此會員，可能已被刪除，請重新選擇', 'error');
+                resetBatchRedeem();
+                return;
+            }
+            if (freshMember.status === 'expired') {
+                Core.toast('會員狀態已變更為過期，無法核銷', 'error');
+                _redeemTargetMember.lock = freshMember;
+                renderBatchRedeemTable();
+                return;
+            }
+            if (freshMember.points < totalPts) {
+                Core.toast(`點數不足！會員目前餘額 ${freshMember.points.toLocaleString()} 點，需要 ${totalPts.toLocaleString()} 點。已重新整理`, 'error');
+                _redeemTargetMember.lock = freshMember;
+                renderBatchRedeemTable();
+                return;
+            }
+
+            // 庫存重新驗證：以最新庫存確認每個條碼的可扣量
             const invByBarcode = new Map(inventory.map(i => [i.barcode, i]));
+            const scanCounts = _batchRedeemList.reduce((m, x) => {
+                m[x.barcode] = (m[x.barcode] || 0) + 1;
+                return m;
+            }, {});
+            for (const [barcode, count] of Object.entries(scanCounts)) {
+                const invItem = invByBarcode.get(barcode);
+                if (!invItem) {
+                    Core.toast(`條碼 ${barcode} 已不存在於庫存，請移除後再送出`, 'error');
+                    return;
+                }
+                if ((invItem.quantity || 0) < count) {
+                    Core.toast(`【${invItem.name}】庫存不足（目前 ${invItem.quantity || 0} 件，需要 ${count} 件）`, 'error');
+                    return;
+                }
+            }
 
             const maxRId = redemptions.reduce((max, r) => {
                 const n = parseInt(r.id.replace(/\D/g, ''), 10) || 0;
@@ -233,23 +264,23 @@ window.Rd = (function () {
                 baseId++;
                 redemptions.push({
                     id: 'R' + String(baseId).padStart(3, '0'),
-                    memberId: member.id,
+                    memberId: freshMember.id,
                     itemBarcode: item.barcode,
                     itemName: item.name,
                     category: item.category,
                     pointsCost: item.pointsCost,
                     date: new Date().toISOString()
                 });
-                logPointChange(member.id, member.name, -item.pointsCost, 'redeem', `兌換：${item.name}`);
+                logPointChange(freshMember.id, freshMember.name, -item.pointsCost, 'redeem', `兌換：${item.name}`);
             });
 
-            const memIdx = members.findIndex(x => x.id === member.id);
+            const memIdx = members.findIndex(x => x.id === freshMember.id);
             members[memIdx].points -= totalPts;
 
             saveInventory(inventory);
             saveRedemptions(redemptions);
             saveMembers(members);
-            logAdminAction('REDEMPTION_BATCH', `${member.id} ${member.name}`, `${_batchRedeemList.length} 件、扣 ${totalPts} 點`);
+            logAdminAction('REDEMPTION_BATCH', `${freshMember.id} ${freshMember.name}`, `${_batchRedeemList.length} 件、扣 ${totalPts} 點`);
 
             resetBatchRedeem();
             Core.closeModal('batchRedeemModal');
@@ -260,9 +291,12 @@ window.Rd = (function () {
         });
     }
 
-    function intercept_batchRedeemModal() {
+    async function intercept_batchRedeemModal() {
         if (_batchRedeemList.length > 0) {
-            return confirm(`清單中有 ${_batchRedeemList.length} 件物品尚未完成核銷，確定要關閉嗎？`);
+            return await Core.confirm(
+                `清單中有 ${_batchRedeemList.length} 件物品尚未完成核銷，確定要關閉嗎？`,
+                { title: '尚未送出核銷', confirmText: '確認關閉', type: 'danger' }
+            );
         }
         return true;
     }

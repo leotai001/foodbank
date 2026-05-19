@@ -24,6 +24,56 @@ window.Core = (function () {
     const openModal  = (id) => document.getElementById(id).classList.add('active');
     const closeModal = (id) => document.getElementById(id).classList.remove('active');
 
+    // ---- Confirm / Alert Modal（非阻塞、Promise-based）----
+    // 動態建立 overlay，沿用既有 .modal-overlay / .modal-content 樣式
+    function _buildDialog({ title, message, confirmText, cancelText, type, hideCancel }) {
+        return new Promise(resolve => {
+            const overlay = document.createElement('div');
+            overlay.className = 'modal-overlay active core-dialog-overlay';
+            const safeTitle   = escapeHtml(title || (hideCancel ? '提示' : '確認'));
+            const safeMessage = escapeHtml(message || '');
+            const okClass     = type === 'danger' ? 'btn btn-danger' : 'btn';
+            overlay.innerHTML = `
+                <div class="modal-content" style="max-width: 440px;">
+                    <div class="modal-header" style="margin-bottom:1rem;">
+                        <h3>${safeTitle}</h3>
+                    </div>
+                    <div style="line-height:1.7; margin-bottom:1.5rem; white-space:pre-wrap; color:var(--text-primary);">${safeMessage}</div>
+                    <div style="display:flex; gap:0.75rem; justify-content:flex-end; flex-wrap:wrap;">
+                        ${hideCancel ? '' : `<button type="button" class="btn btn-outline core-dialog-cancel">${escapeHtml(cancelText || '取消')}</button>`}
+                        <button type="button" class="${okClass} core-dialog-ok">${escapeHtml(confirmText || '確認')}</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(overlay);
+
+            const cleanup = (result) => {
+                document.removeEventListener('keydown', onKey, true);
+                overlay.remove();
+                resolve(result);
+            };
+            const onKey = (e) => {
+                if (e.key === 'Escape')      { e.stopPropagation(); cleanup(false); }
+                else if (e.key === 'Enter')  { e.stopPropagation(); cleanup(true); }
+            };
+            document.addEventListener('keydown', onKey, true);
+
+            overlay.querySelector('.core-dialog-ok').addEventListener('click', () => cleanup(true));
+            const cancelBtn = overlay.querySelector('.core-dialog-cancel');
+            if (cancelBtn) cancelBtn.addEventListener('click', () => cleanup(false));
+            // 點背景關閉（視為取消）
+            overlay.addEventListener('click', (e) => { if (e.target === overlay) cleanup(false); });
+
+            setTimeout(() => overlay.querySelector('.core-dialog-ok').focus(), 50);
+        });
+    }
+    function confirmDialog(message, options = {}) {
+        return _buildDialog({ message, hideCancel: false, ...options });
+    }
+    function alertDialog(message, options = {}) {
+        return _buildDialog({ message, hideCancel: true, ...options }).then(() => undefined);
+    }
+
     // ---- Toast 通知 ----
     function ensureToastHost() {
         let host = document.getElementById('toastHost');
@@ -136,7 +186,44 @@ window.Core = (function () {
         document.body.removeChild(a); URL.revokeObjectURL(url);
     }
 
-    // CSV 解析（支援 BOM、雙引號跳脫、跨平台換行）
+    // CSV 解析（字元級狀態機；支援 BOM、雙引號跳脫、欄位內換行、跨平台換行）
+    function parseCsvText(raw) {
+        if (!raw) return null;
+        if (raw.charCodeAt(0) === 0xFEFF) raw = raw.slice(1);
+
+        const rows = [];
+        let cells = [], cur = '', inQuotes = false;
+        for (let i = 0; i < raw.length; i++) {
+            const ch = raw[i];
+            if (inQuotes) {
+                if (ch === '"' && raw[i + 1] === '"') { cur += '"'; i++; }
+                else if (ch === '"') inQuotes = false;
+                else cur += ch;
+            } else {
+                if (ch === '"') inQuotes = true;
+                else if (ch === ',') { cells.push(cur); cur = ''; }
+                else if (ch === '\r') { /* 忽略 CR；LF 才視為列尾 */ }
+                else if (ch === '\n') { cells.push(cur); rows.push(cells); cur = ''; cells = []; }
+                else cur += ch;
+            }
+        }
+        // 結尾若還有資料未收尾
+        if (cur !== '' || cells.length > 0) { cells.push(cur); rows.push(cells); }
+
+        // 過濾完全空白的列（例如尾端空行、或欄位都是空白）
+        const nonEmpty = rows.filter(r => r.some(c => c.trim() !== ''));
+        if (nonEmpty.length < 1) return null;
+
+        const headers = nonEmpty[0].map(h => h.trim());
+        if (nonEmpty.length < 2) return [];
+        return nonEmpty.slice(1).map(cells => {
+            const obj = {};
+            headers.forEach((h, i) => { obj[h] = (cells[i] ?? '').trim(); });
+            return obj;
+        });
+    }
+
+    // 舊版 parseCsvRow：保留以維持對外 API 相容（單列 CSV，內部不再使用）
     function parseCsvRow(line) {
         const cells = [];
         let i = 0, cur = '';
@@ -153,19 +240,6 @@ window.Core = (function () {
         }
         cells.push(cur);
         return cells;
-    }
-    function parseCsvText(raw) {
-        if (raw.charCodeAt(0) === 0xFEFF) raw = raw.slice(1);
-        const lines = raw.split(/\r?\n/).filter(l => l.trim() !== '');
-        if (lines.length < 1) return null;
-        const headers = parseCsvRow(lines[0]);
-        if (lines.length < 2) return [];
-        return lines.slice(1).map(line => {
-            const cells = parseCsvRow(line);
-            const obj = {};
-            headers.forEach((h, i) => { obj[h.trim()] = (cells[i] ?? '').trim(); });
-            return obj;
-        });
     }
 
     // ---- 目前管理員 / 權限 ----
@@ -209,13 +283,16 @@ window.Core = (function () {
         });
     }
 
-    // ---- Modal close-btn 通用處理（intercepts: { modalId: () => boolean | void }） ----
+    // ---- Modal close-btn 通用處理（intercepts: { modalId: () => boolean | Promise<boolean> | void }） ----
     function setupModalClose(intercepts = {}) {
         document.querySelectorAll('.close-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
+            btn.addEventListener('click', async () => {
                 const modalId = btn.getAttribute('data-modal');
                 const intercept = intercepts[modalId];
-                if (typeof intercept === 'function' && intercept() === false) return;
+                if (typeof intercept === 'function') {
+                    const result = await intercept();
+                    if (result === false) return;
+                }
                 document.getElementById(modalId).classList.remove('active');
             });
         });
@@ -231,9 +308,13 @@ window.Core = (function () {
 
     function resetIdleTimer() {
         clearTimeout(_idleTimer);
-        _idleTimer = setTimeout(() => {
-            alert('已閒置 30 分鐘，自動登出。');
-            logoutAndRedirect('閒置自動登出');
+        _idleTimer = setTimeout(async () => {
+            // 安全優先：先清除 session 再顯示提示，避免「等使用者按確認」期間 session 仍有效
+            logAdminAction('LOGOUT', _currentAdmin ? _currentAdmin.username : '', '閒置自動登出');
+            clearAdminSession();
+            sessionStorage.removeItem('adminToken');
+            await alertDialog('已閒置 30 分鐘，系統已自動登出，請重新登入。', { title: '安全提示' });
+            window.location.href = 'index.html';
         }, IDLE_LIMIT_MS);
     }
 
@@ -264,6 +345,7 @@ window.Core = (function () {
         bootstrap, setupNavigation, setupModalClose, logoutAndRedirect,
         isSuper, getCurrent, refreshCurrentAdmin, renderCurrentAdminBadge, applyRoleVisibility,
         openModal, closeModal, toast,
+        confirm: confirmDialog, alert: alertDialog,
         fmtDisp, fmtDateTime, todayStr,
         drawChart, drawPie, buildStatCard, trendBadge,
         getCatColor, resolveCategory, clearCatCache,

@@ -89,16 +89,16 @@
                     </div>
 
                     <!-- RFM 會員活躍度分群 -->
-                    <div class="card" style="margin-top:1.5rem;">
+                    <div class="card mt-lg">
                         <h3 class="card-title">RFM 會員活躍度分群</h3>
                         <div class="stats-grid" id="rfmStats" style="margin-bottom:1rem;"></div>
                         <div class="chart-container" style="height:250px;"><canvas id="rfmPieChart"></canvas></div>
                     </div>
 
                     <!-- 點數異動紀錄 -->
-                    <div class="card" style="margin-top:1.5rem;">
+                    <div class="card mt-lg">
                         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
-                            <h3 class="card-title" style="margin-bottom:0;">點數異動紀錄</h3>
+                            <h3 class="card-title mb-0">點數異動紀錄</h3>
                             <button class="btn btn-sm btn-outline" id="togglePointsLog">顯示全部</button>
                         </div>
                         <div class="table-responsive">
@@ -166,7 +166,7 @@
                             <input type="date" id="customReportEnd" style="width:auto;">
                         </div>
                     </div>
-                    <div id="customReportError" style="background:#fee2e2; border:1px solid #fca5a5; border-radius:var(--radius); padding:0.75rem 1rem; margin-bottom:1rem; color:#991b1b; font-size:0.875rem; display:none;"></div>
+                    <div id="customReportError" class="alert alert-danger" style="display:none;"></div>
                     <div class="stats-grid" id="customStats"></div>
                     <div class="dashboard-charts">
                         <div class="card">
@@ -191,7 +191,7 @@
                         <h3 class="card-title">小時兌換分佈</h3>
                         <div class="chart-container"><canvas id="dailyHourChart"></canvas></div>
                     </div>
-                    <div class="card" style="margin-top:1.5rem;">
+                    <div class="card mt-lg">
                         <h3 class="card-title">當日兌換明細</h3>
                         <div class="table-responsive" style="max-height:300px; overflow-y:auto;">
                             <table>
@@ -249,7 +249,7 @@
                 <!-- 庫存入庫歷史 -->
                 <div class="card">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
-                        <h3 class="card-title" style="margin-bottom:0;">庫存入庫歷史</h3>
+                        <h3 class="card-title mb-0">庫存入庫歷史</h3>
                         <button class="btn btn-sm btn-outline" id="toggleInventoryLog">顯示全部</button>
                     </div>
                     <div class="table-responsive">
@@ -320,9 +320,9 @@
                     <button class="btn" id="startRedeemBtn" style="max-width: 400px; padding: 1rem; font-size: 1.1rem; background: var(--success);">+ 開始多筆掃碼核銷</button>
                 </div>
 
-                <div class="card" style="margin-top:2rem;">
+                <div class="card mt-xl">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; flex-wrap:wrap; gap:0.5rem;">
-                        <h3 class="card-title" style="margin-bottom:0;">核銷歷史</h3>
+                        <h3 class="card-title mb-0">核銷歷史</h3>
                         <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
                             <input type="text" id="redemptionSearchInput" placeholder="🔍 搜尋姓名或物品..." style="max-width:220px;">
                             <button class="btn btn-sm btn-outline" id="toggleShowAllRedemptions">顯示全部</button>
@@ -354,40 +354,40 @@
                 <!-- 匯出資料 -->
                 <div class="card">
                     <h3 class="card-title">匯出資料 (CSV)</h3>
-                    <p style="color:var(--text-secondary); font-size:0.875rem; margin-bottom:1.5rem;">匯出的 CSV 檔案含 UTF-8 BOM，可直接用 Excel 或 Google 試算表開啟並正確顯示繁體中文。</p>
-                    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(190px, 1fr)); gap:1rem;">
-                        <div class="stat-card" style="display:flex; flex-direction:column; gap:0.75rem;">
+                    <p class="text-muted text-sm mb-lg">匯出的 CSV 檔案含 UTF-8 BOM，可直接用 Excel 或 Google 試算表開啟並正確顯示繁體中文。</p>
+                    <div class="grid-auto-fit">
+                        <div class="stat-card flex-col gap-md">
                             <div>
                                 <div style="font-weight:600; margin-bottom:0.25rem;">👥 會員清單</div>
-                                <div style="color:var(--text-secondary); font-size:0.8rem;">ID、姓名、電話、狀態、點數、加入日期等</div>
+                                <div class="text-muted" style="font-size:0.8rem;">ID、姓名、電話、狀態、點數、加入日期等</div>
                             </div>
                             <button class="btn btn-sm btn-outline" id="exportMembersBtn">匯出 CSV</button>
                         </div>
-                        <div class="stat-card" style="display:flex; flex-direction:column; gap:0.75rem;">
+                        <div class="stat-card flex-col gap-md">
                             <div>
                                 <div style="font-weight:600; margin-bottom:0.25rem;">🛒 兌換紀錄</div>
-                                <div style="color:var(--text-secondary); font-size:0.8rem;">所有核銷明細，含時間、物品、點數</div>
+                                <div class="text-muted" style="font-size:0.8rem;">所有核銷明細，含時間、物品、點數</div>
                             </div>
                             <button class="btn btn-sm btn-outline" id="exportRedemptionsBtn">匯出 CSV</button>
                         </div>
-                        <div class="stat-card" style="display:flex; flex-direction:column; gap:0.75rem;">
+                        <div class="stat-card flex-col gap-md">
                             <div>
                                 <div style="font-weight:600; margin-bottom:0.25rem;">💰 點數異動紀錄</div>
-                                <div style="color:var(--text-secondary); font-size:0.8rem;">所有補點、扣點、兌換的完整明細</div>
+                                <div class="text-muted" style="font-size:0.8rem;">所有補點、扣點、兌換的完整明細</div>
                             </div>
                             <button class="btn btn-sm btn-outline" id="exportPointsLogBtn">匯出 CSV</button>
                         </div>
-                        <div class="stat-card" style="display:flex; flex-direction:column; gap:0.75rem;">
+                        <div class="stat-card flex-col gap-md">
                             <div>
                                 <div style="font-weight:600; margin-bottom:0.25rem;">📥 入庫歷史</div>
-                                <div style="color:var(--text-secondary); font-size:0.8rem;">所有掃描入庫的操作紀錄</div>
+                                <div class="text-muted" style="font-size:0.8rem;">所有掃描入庫的操作紀錄</div>
                             </div>
                             <button class="btn btn-sm btn-outline" id="exportInventoryLogBtn">匯出 CSV</button>
                         </div>
-                        <div class="stat-card" style="display:flex; flex-direction:column; gap:0.75rem;">
+                        <div class="stat-card flex-col gap-md">
                             <div>
                                 <div style="font-weight:600; margin-bottom:0.25rem;">📦 現有庫存</div>
-                                <div style="color:var(--text-secondary); font-size:0.8rem;">目前所有品項的庫存狀況快照</div>
+                                <div class="text-muted" style="font-size:0.8rem;">目前所有品項的庫存狀況快照</div>
                             </div>
                             <button class="btn btn-sm btn-outline" id="exportInventoryBtn">匯出 CSV</button>
                         </div>
@@ -395,29 +395,29 @@
                 </div>
 
                 <!-- 操作審計紀錄（僅 super） -->
-                <div class="card" data-role-only="super" style="margin-top:1.5rem;">
+                <div class="card mt-lg" data-role-only="super">
                     <div style="display:flex; justify-content:space-between; align-items:center; gap:1rem; margin-bottom:1rem; flex-wrap:wrap;">
-                        <h3 class="card-title" style="margin-bottom:0;">📜 操作審計紀錄</h3>
+                        <h3 class="card-title mb-0">📜 操作審計紀錄</h3>
                         <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
                             <button class="btn btn-sm btn-outline" id="exportAuditLogBtn">匯出 CSV</button>
                         </div>
                     </div>
-                    <p style="color:var(--text-secondary); font-size:0.875rem; margin-bottom:1rem;">記錄所有管理員的關鍵操作（新增/編輯/刪除/批量處理/清除等）。</p>
+                    <p class="text-muted text-sm mb-md">記錄所有管理員的關鍵操作（新增/編輯/刪除/批量處理/清除等）。</p>
 
-                    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(160px, 1fr)); gap:0.75rem; margin-bottom:1rem;">
-                        <div class="form-group" style="margin-bottom:0;">
+                    <div class="grid-auto-fit-sm mb-md">
+                        <div class="form-group mb-0">
                             <label style="font-size:0.8rem;">起始日期</label>
                             <input type="date" id="auditFilterStart">
                         </div>
-                        <div class="form-group" style="margin-bottom:0;">
+                        <div class="form-group mb-0">
                             <label style="font-size:0.8rem;">結束日期</label>
                             <input type="date" id="auditFilterEnd">
                         </div>
-                        <div class="form-group" style="margin-bottom:0;">
+                        <div class="form-group mb-0">
                             <label style="font-size:0.8rem;">管理員</label>
                             <select id="auditFilterAdmin"><option value="">全部</option></select>
                         </div>
-                        <div class="form-group" style="margin-bottom:0;">
+                        <div class="form-group mb-0">
                             <label style="font-size:0.8rem;">動作類型</label>
                             <select id="auditFilterAction"><option value="">全部</option></select>
                         </div>
@@ -428,7 +428,7 @@
                     </div>
 
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
-                        <small id="auditCountInfo" style="color:var(--text-secondary);">共 0 筆</small>
+                        <small id="auditCountInfo" class="text-muted">共 0 筆</small>
                         <button class="btn btn-sm btn-outline" id="toggleAuditLog">顯示全部</button>
                     </div>
                     <div class="table-responsive">
@@ -442,16 +442,16 @@
                 </div>
 
                 <!-- 清除歷史資料 -->
-                <div class="card" data-role-only="super" style="border-color:#fca5a5;">
-                    <h3 class="card-title" style="color:var(--danger);">⚠️ 清除歷史資料</h3>
-                    <p style="color:var(--text-secondary); font-size:0.875rem; margin-bottom:1.5rem;">清除指定日期區間的歷史紀錄以釋放瀏覽器儲存空間。此操作<strong>不可復原</strong>，建議先匯出備份再執行。</p>
+                <div class="card card-danger" data-role-only="super">
+                    <h3 class="card-title text-danger">⚠️ 清除歷史資料</h3>
+                    <p class="text-muted text-sm mb-lg">清除指定日期區間的歷史紀錄以釋放瀏覽器儲存空間。此操作<strong>不可復原</strong>，建議先匯出備份再執行。</p>
 
                     <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-bottom:1.5rem; max-width:480px;">
-                        <div class="form-group" style="margin-bottom:0;">
+                        <div class="form-group mb-0">
                             <label>起始日期（含當天）</label>
                             <input type="date" id="clearStartDate">
                         </div>
-                        <div class="form-group" style="margin-bottom:0;">
+                        <div class="form-group mb-0">
                             <label>結束日期（含當天）</label>
                             <input type="date" id="clearEndDate">
                         </div>
@@ -475,9 +475,9 @@
                         </div>
                     </div>
 
-                    <div id="clearPreviewBox" class="hidden" style="background:#fef9c3; border:1px solid #fbbf24; border-radius:var(--radius); padding:1rem; margin-bottom:1.25rem; line-height:1.9;"></div>
+                    <div id="clearPreviewBox" class="alert alert-warn hidden"></div>
 
-                    <div style="display:flex; gap:0.75rem; flex-wrap:wrap;">
+                    <div class="flex flex-wrap gap-md">
                         <button class="btn btn-sm btn-outline" id="previewClearBtn" style="border-color:var(--danger); color:var(--danger);">預覽將刪除的筆數</button>
                         <button class="btn btn-sm btn-danger" id="confirmClearBtn">執行清除</button>
                     </div>
@@ -492,7 +492,7 @@
                 </div>
 
                 <div class="card">
-                    <p style="color:var(--text-secondary); font-size:0.85rem; margin:0 0 1rem 0;">至少保留 1 位 super 管理員。無法刪除或停用自己。如需修改自己的密碼，請點側邊欄「🔑 修改密碼」。</p>
+                    <p class="text-muted text-sm mb-md">至少保留 1 位 super 管理員。無法刪除或停用自己。如需修改自己的密碼，請點側邊欄「🔑 修改密碼」。</p>
                     <div class="table-responsive">
                         <table>
                             <thead>
@@ -592,7 +592,7 @@
                 <button class="close-btn" data-modal="inventoryImportModal">&times;</button>
             </div>
 
-            <div style="background:#eff6ff; border:1px solid var(--primary-color); border-radius:var(--radius); padding:0.85rem 1rem; margin-bottom:1.25rem; font-size:0.875rem; line-height:1.9;">
+            <div class="alert alert-info">
                 <strong>支援格式：</strong>欄位「條碼、名稱、分類、庫存量、預設點數、有效期、批號」<br>
                 <code>條碼</code>、<code>名稱</code> 為必要欄位；<code>分類</code> 不存在時自動套用第一個分類；<code>有效期</code>（YYYY-MM-DD，選填）若有填會建立批號
             </div>
@@ -615,7 +615,7 @@
                 </div>
             </div>
 
-            <div id="importInvError" class="hidden" style="background:#fee2e2; border:1px solid #fca5a5; border-radius:var(--radius); padding:0.75rem 1rem; margin-bottom:1rem; color:#991b1b; font-size:0.875rem;"></div>
+            <div id="importInvError" class="alert alert-danger hidden"></div>
 
             <div id="importInvPreviewSection" class="hidden">
                 <div id="importInvSummary"></div>
@@ -637,7 +637,7 @@
                 </div>
             </div>
 
-            <div style="display:flex; justify-content:flex-end; gap:0.75rem; margin-top:1.5rem;">
+            <div class="modal-actions">
                 <button class="btn btn-outline" id="importInvCancelBtn">取消</button>
                 <button class="btn hidden" id="importInvConfirmBtn">確認匯入</button>
             </div>
@@ -651,7 +651,7 @@
                 <h3 id="batchManageTitle">批號管理</h3>
                 <button class="close-btn" data-modal="batchManageModal">&times;</button>
             </div>
-            <p style="color:var(--text-secondary); font-size:0.85rem; margin-bottom:1rem;">啟用批號後，核銷會自動依「最早到期」優先扣除（FEFO）。批號數量加總即為庫存量。</p>
+            <p class="text-muted text-sm mb-md">啟用批號後，核銷會自動依「最早到期」優先扣除（FEFO）。批號數量加總即為庫存量。</p>
 
             <div class="table-responsive" style="max-height:300px; overflow-y:auto; margin-bottom:1.25rem;">
                 <table>
@@ -663,11 +663,11 @@
             </div>
 
             <form id="batchManageNewForm" style="display:flex; gap:0.75rem; align-items:flex-end; padding:1rem; background:#f8fafc; border-radius:var(--radius); flex-wrap:wrap;">
-                <div class="form-group" style="margin-bottom:0;">
+                <div class="form-group mb-0">
                     <label style="font-size:0.8rem;">新增批號 — 數量</label>
                     <input type="number" id="batchManageNewQty" min="1" placeholder="例如 10" style="width:100px;" required>
                 </div>
-                <div class="form-group" style="margin-bottom:0;">
+                <div class="form-group mb-0">
                     <label style="font-size:0.8rem;">有效期 (選填)</label>
                     <input type="date" id="batchManageNewExpiry" style="width:160px;">
                 </div>
@@ -705,7 +705,7 @@
             </div>
 
             <form id="batchRedeemForm">
-                <div id="brClearAllRow" class="hidden" style="display:flex; justify-content:flex-end; margin-bottom:0.5rem;">
+                <div id="brClearAllRow" class="flex flex-end mb-sm hidden">
                     <button type="button" class="btn btn-sm btn-outline" id="brClearAllBtn" style="border-color:var(--danger); color:var(--danger);">🗑️ 清空清單</button>
                 </div>
                 <div class="table-responsive hidden" id="brTableSection" style="max-height: 300px; overflow-y:auto; margin-bottom:1rem; border:1px solid var(--border-color);">
@@ -766,7 +766,7 @@
                 <div class="form-group">
                     <label id="adminEditPwdLabel">密碼（至少 6 字元）</label>
                     <input type="password" id="adminEditPassword" minlength="6" autocomplete="new-password">
-                    <small id="adminEditPwdHint" style="color:var(--text-secondary); font-size:0.75rem; display:none;">編輯時留空表示不修改密碼</small>
+                    <small id="adminEditPwdHint" class="text-muted text-xs" style="display:none;">編輯時留空表示不修改密碼</small>
                 </div>
                 <div class="form-group">
                     <label>角色</label>
@@ -814,7 +814,7 @@
                 <button class="close-btn" data-modal="memberImportModal">&times;</button>
             </div>
 
-            <div style="background:#eff6ff; border:1px solid var(--primary-color); border-radius:var(--radius); padding:0.85rem 1rem; margin-bottom:1.25rem; font-size:0.875rem; line-height:1.9;">
+            <div class="alert alert-info">
                 <strong>支援格式：</strong>與「匯出 → 會員清單」相同的 CSV（欄位：會員ID、姓名、電話、狀態、剩餘點數、加入日期、生日、地址、條碼）<br>
                 <code>姓名</code> 與 <code>電話</code> 為必要欄位；<code>會員ID</code> 留空時系統自動指派；其餘欄位留空套用預設值
             </div>
@@ -839,7 +839,7 @@
             </div>
 
             <!-- 錯誤訊息 -->
-            <div id="importError" class="hidden" style="background:#fee2e2; border:1px solid #fca5a5; border-radius:var(--radius); padding:0.75rem 1rem; margin-bottom:1rem; color:#991b1b; font-size:0.875rem;"></div>
+            <div id="importError" class="alert alert-danger hidden"></div>
 
             <!-- 預覽表格 -->
             <div id="importPreviewSection" class="hidden">
@@ -861,7 +861,7 @@
                 </div>
             </div>
 
-            <div style="display:flex; justify-content:flex-end; gap:0.75rem; margin-top:1.5rem;">
+            <div class="modal-actions">
                 <button class="btn btn-outline" id="importCancelBtn">取消</button>
                 <button class="btn hidden" id="importConfirmBtn">確認匯入</button>
             </div>
@@ -875,7 +875,7 @@
                 <h3>💰 批量補點</h3>
                 <button class="close-btn" data-modal="batchTopupModal">&times;</button>
             </div>
-            <div id="batchTopupInfo" style="background:#f0fdf4; border:1px solid var(--success); border-radius:var(--radius); padding:0.85rem 1rem; margin-bottom:1.25rem; font-size:0.875rem; line-height:1.8;"></div>
+            <div id="batchTopupInfo" class="alert alert-success"></div>
             <form id="batchTopupForm">
                 <div class="form-group">
                     <label>異動點數（正數補點 ＋，負數扣點 −）</label>
@@ -885,7 +885,7 @@
                     <label>異動原因（必填，將記入點數 log）</label>
                     <input type="text" id="batchTopupNote" required placeholder="例如：2026 Q2 補助點數">
                 </div>
-                <div id="batchTopupPreview" class="hidden" style="background:#eff6ff; border:1px solid var(--primary-color); border-radius:var(--radius); padding:0.75rem 1rem; margin-bottom:1rem; font-size:0.875rem;"></div>
+                <div id="batchTopupPreview" class="alert alert-info hidden"></div>
                 <div id="batchTopupError" style="color:var(--danger); font-size:0.85rem; margin-bottom:1rem; display:none;"></div>
                 <button type="submit" class="btn" id="batchTopupSubmitBtn">確認執行</button>
             </form>
@@ -899,7 +899,7 @@
                 <h3 style="color:var(--danger);">⚠️ 確認清除資料</h3>
                 <button class="close-btn" data-modal="clearDataModal">&times;</button>
             </div>
-            <div id="clearDataSummary" style="color:var(--text-secondary); line-height:1.9; margin-bottom:1.5rem;"></div>
+            <div id="clearDataSummary" class="text-muted leading-loose mb-lg"></div>
             <div class="form-group">
                 <label>請輸入「<strong>確認清除</strong>」以繼續執行</label>
                 <input type="text" id="clearConfirmInput" placeholder="確認清除" autocomplete="off">

@@ -25,7 +25,7 @@
                     <label for="passwordInput">密碼</label>
                     <input type="password" id="passwordInput" placeholder="新用戶首次登入不需密碼">
                 </div>
-                <div id="loginError" style="color: var(--danger); font-size: 0.85rem; margin-bottom: 1rem; display: none;"></div>
+                <div id="loginError" class="text-danger text-sm mb-md" style="display: none;"></div>
                 <button type="submit" class="btn">登入</button>
             </form>
         </div>
@@ -77,13 +77,13 @@
                 <div class="header-bar">
                     <div>
                         <h1 id="welcomeUser">歡迎</h1>
-                        <p style="color: var(--text-secondary);">出示下方條碼給工作人員進行兌換</p>
+                        <p class="text-muted">出示下方條碼給工作人員進行兌換</p>
                     </div>
                 </div>
 
                 <!-- 會員條碼區塊 -->
                 <div class="card" style="text-align: center;">
-                    <h3 style="margin-bottom: 1rem; color: var(--text-secondary);">您的專屬會員條碼</h3>
+                    <h3 class="text-muted mb-md">您的專屬會員條碼</h3>
                     <div class="barcode-wrapper">
                         <svg id="memberBarcode"></svg>
                     </div>
@@ -142,7 +142,7 @@
                         </div>
                         <button type="submit" class="btn">儲存更改</button>
                     </form>
-                    <p id="profileSuccess" style="color: var(--success); display: none; margin-top: 1rem; font-weight: 500;">資料已更新！</p>
+                    <p id="profileSuccess" class="text-success mt-md" style="display: none; font-weight: 500;">資料已更新！</p>
                 </div>
             </section>
         </main>

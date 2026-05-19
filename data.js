@@ -76,33 +76,62 @@ function initDB() {
     }
 }
 
+// ---- In-memory cache 層 ----
+// 設計：所有 getter / setter 共用一份記憶體副本，避免重複 JSON.parse / localStorage IO。
+// 約定：呼叫端取得 reference 後可直接 mutate，但每次修改後 *必須* 呼叫對應的 save*，
+// 否則 cache 與 localStorage 不一致（重整後變更會消失）。
+// 注意：跨分頁不會自動同步；如需多視窗同步，待後續導入 storage 事件處理。
+const _cache = Object.create(null);
+
+function _readKey(key, fallback) {
+    if (_cache[key] !== undefined) return _cache[key];
+    try {
+        const raw = localStorage.getItem(key);
+        _cache[key] = raw === null ? fallback : (JSON.parse(raw) ?? fallback);
+    } catch {
+        _cache[key] = fallback;
+    }
+    return _cache[key];
+}
+function _writeKey(key, value) {
+    _cache[key] = value;
+    return safeSetItem(key, JSON.stringify(value));
+}
+function _invalidateCache(key) {
+    if (key === undefined) {
+        for (const k of Object.keys(_cache)) delete _cache[k];
+    } else {
+        delete _cache[key];
+    }
+}
+
 // ---- Data Accessors ----
-function getCategories() { return JSON.parse(localStorage.getItem(DB_CATEGORIES_KEY)) || []; }
-function saveCategories(cats) { safeSetItem(DB_CATEGORIES_KEY, JSON.stringify(cats)); }
+function getCategories()       { return _readKey(DB_CATEGORIES_KEY, []); }
+function saveCategories(cats)  { return _writeKey(DB_CATEGORIES_KEY, cats); }
 
-function getMembers() { return JSON.parse(localStorage.getItem(DB_MEMBERS_KEY)) || []; }
-function saveMembers(members) { safeSetItem(DB_MEMBERS_KEY, JSON.stringify(members)); }
+function getMembers()          { return _readKey(DB_MEMBERS_KEY, []); }
+function saveMembers(members)  { return _writeKey(DB_MEMBERS_KEY, members); }
 
-function getRedemptions() { return JSON.parse(localStorage.getItem(DB_REDEMPTIONS_KEY)) || []; }
-function saveRedemptions(redemptions) { safeSetItem(DB_REDEMPTIONS_KEY, JSON.stringify(redemptions)); }
+function getRedemptions()      { return _readKey(DB_REDEMPTIONS_KEY, []); }
+function saveRedemptions(rs)   { return _writeKey(DB_REDEMPTIONS_KEY, rs); }
 
-function getInventory() { return JSON.parse(localStorage.getItem(DB_INVENTORY_KEY)) || []; }
-function saveInventory(inventory) { safeSetItem(DB_INVENTORY_KEY, JSON.stringify(inventory)); }
+function getInventory()        { return _readKey(DB_INVENTORY_KEY, []); }
+function saveInventory(inv)    { return _writeKey(DB_INVENTORY_KEY, inv); }
 
-function getPointsLog() { return JSON.parse(localStorage.getItem(DB_POINTS_LOG_KEY)) || []; }
-function savePointsLog(log) { safeSetItem(DB_POINTS_LOG_KEY, JSON.stringify(log)); }
+function getPointsLog()        { return _readKey(DB_POINTS_LOG_KEY, []); }
+function savePointsLog(log)    { return _writeKey(DB_POINTS_LOG_KEY, log); }
 
-function getInventoryLog() { return JSON.parse(localStorage.getItem(DB_INVENTORY_LOG_KEY)) || []; }
-function saveInventoryLog(log) { safeSetItem(DB_INVENTORY_LOG_KEY, JSON.stringify(log)); }
+function getInventoryLog()     { return _readKey(DB_INVENTORY_LOG_KEY, []); }
+function saveInventoryLog(log) { return _writeKey(DB_INVENTORY_LOG_KEY, log); }
 
-function getCatColors() { return JSON.parse(localStorage.getItem(DB_CAT_COLORS_KEY)) || {}; }
-function saveCatColors(c) { safeSetItem(DB_CAT_COLORS_KEY, JSON.stringify(c)); }
+function getCatColors()        { return _readKey(DB_CAT_COLORS_KEY, {}); }
+function saveCatColors(c)      { return _writeKey(DB_CAT_COLORS_KEY, c); }
 
-function getAdmins() { return JSON.parse(localStorage.getItem(DB_ADMINS_KEY)) || []; }
-function saveAdmins(admins) { safeSetItem(DB_ADMINS_KEY, JSON.stringify(admins)); }
+function getAdmins()           { return _readKey(DB_ADMINS_KEY, []); }
+function saveAdmins(admins)    { return _writeKey(DB_ADMINS_KEY, admins); }
 
-function getAuditLog() { return JSON.parse(localStorage.getItem(DB_AUDIT_LOG_KEY)) || []; }
-function saveAuditLog(log) { safeSetItem(DB_AUDIT_LOG_KEY, JSON.stringify(log)); }
+function getAuditLog()         { return _readKey(DB_AUDIT_LOG_KEY, []); }
+function saveAuditLog(log)     { return _writeKey(DB_AUDIT_LOG_KEY, log); }
 
 // ---- Log Helpers ----
 function logPointChange(memberId, memberName, delta, type, note) {
@@ -154,14 +183,47 @@ function safeSetItem(key, value) {
     }
 }
 
+// 通用 SHA-256（仍用於 session token hash）
 async function hashPassword(pwd) {
     if (!pwd) return '';
     const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pwd));
     return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-function isHashed(pwd) {
-    return /^[a-f0-9]{64}$/.test(pwd);
+// 產生 16 bytes salt（32 hex chars）
+function genSalt() {
+    const bytes = crypto.getRandomValues(new Uint8Array(16));
+    return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// 帶 salt 的密碼雜湊，回傳 "salt$hash" 格式
+async function hashPasswordSalted(pwd) {
+    if (!pwd) return '';
+    const salt = genSalt();
+    const hash = await hashPassword(salt + pwd);
+    return salt + '$' + hash;
+}
+
+// 格式判斷
+function isLegacyUnsaltedHash(s) { return /^[a-f0-9]{64}$/.test(s || ''); }
+function isSaltedHash(s)         { return /^[a-f0-9]{32}\$[a-f0-9]{64}$/.test(s || ''); }
+function isHashed(s)             { return isSaltedHash(s) || isLegacyUnsaltedHash(s); }
+
+// 統一密碼驗證：自動辨識三種格式（salted / unsalted hash / plaintext）
+// 回傳 { match, needsUpgrade }；needsUpgrade=true 表示應該升級為 salted 格式
+async function verifyStoredPassword(pwd, stored) {
+    if (isSaltedHash(stored)) {
+        const [salt, hash] = stored.split('$');
+        const match = (await hashPassword(salt + pwd)) === hash;
+        return { match, needsUpgrade: false };
+    }
+    if (isLegacyUnsaltedHash(stored)) {
+        const match = (await hashPassword(pwd)) === stored;
+        return { match, needsUpgrade: match };
+    }
+    // 舊版明文
+    const match = (stored || '') === (pwd || '');
+    return { match, needsUpgrade: match };
 }
 
 function escapeHtml(str) {
@@ -182,23 +244,19 @@ async function loginUser(phone, password) {
 
     if (user.isFirstLogin) {
         return { success: true, isFirstLogin: true, user };
-    } else {
-        let match;
-        if (isHashed(user.password)) {
-            match = user.password === await hashPassword(password);
-        } else {
-            // 舊版明文密碼：驗證後自動升級為 hash（懶遷移）
-            match = user.password === password;
-            if (match) {
-                const allMembers = getMembers();
-                const idx = allMembers.findIndex(m => m.id === user.id);
-                allMembers[idx].password = await hashPassword(password);
-                saveMembers(allMembers);
-            }
-        }
-        if (!match) return { success: false, msg: '密碼錯誤' };
-        return { success: true, isFirstLogin: false, user };
     }
+    const { match, needsUpgrade } = await verifyStoredPassword(password, user.password);
+    if (!match) return { success: false, msg: '密碼錯誤' };
+    if (needsUpgrade) {
+        // 懶遷移：舊版明文或無 salt 的 hash，登入成功後升級為 salted
+        const allMembers = getMembers();
+        const idx = allMembers.findIndex(m => m.id === user.id);
+        if (idx !== -1) {
+            allMembers[idx].password = await hashPasswordSalted(password);
+            saveMembers(allMembers);
+        }
+    }
+    return { success: true, isFirstLogin: false, user };
 }
 
 async function loginAdmin(username, password) {
@@ -208,19 +266,12 @@ async function loginAdmin(username, password) {
     const admin = admins[idx];
     if (admin.status === 'disabled') return { success: false, msg: '此管理員帳號已停用' };
 
-    let match;
-    if (isHashed(admin.password)) {
-        match = admin.password === await hashPassword(password);
-    } else {
-        // 舊版明文：驗證後自動升級為 hash
-        match = admin.password === password;
-        if (match) {
-            admins[idx].password = await hashPassword(password);
-            saveAdmins(admins);
-        }
-    }
-
+    const { match, needsUpgrade } = await verifyStoredPassword(password, admin.password);
     if (!match) return { success: false, msg: '管理員帳號或密碼錯誤' };
+    if (needsUpgrade) {
+        admins[idx].password = await hashPasswordSalted(password);
+        saveAdmins(admins);
+    }
     return { success: true, admin: admins[idx] };
 }
 
@@ -244,6 +295,8 @@ async function createAdminSession(admin) {
     return token;
 }
 
+const MAX_SESSION_AGE_MS = 24 * 60 * 60 * 1000; // 24 小時硬上限
+
 async function verifyAdminSession(token) {
     if (!token) return false;
     const raw = localStorage.getItem(DB_ADMIN_SESSION_KEY);
@@ -251,6 +304,20 @@ async function verifyAdminSession(token) {
     let session;
     try { session = JSON.parse(raw); } catch { return false; }
     if (!session || !session.tokenHash || !session.adminId) return false;
+
+    // 24 小時硬上限：超過直接視為無效並清除（避免 stale session 物件殘留）
+    if (session.createdAt) {
+        const ageMs = Date.now() - new Date(session.createdAt).getTime();
+        if (!Number.isFinite(ageMs) || ageMs < 0 || ageMs > MAX_SESSION_AGE_MS) {
+            clearAdminSession();
+            return false;
+        }
+    } else {
+        // 沒有 createdAt 視為非法 session
+        clearAdminSession();
+        return false;
+    }
+
     if (session.tokenHash !== await hashPassword(token)) return false;
     // 確認此 admin 仍存在且未被停用
     const admin = getAdmins().find(a => a.id === session.adminId);

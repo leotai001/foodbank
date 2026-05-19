@@ -293,10 +293,10 @@ window.Mem = (function () {
         });
 
         // 開啟批量補點 Modal
-        document.getElementById('memBatchTopupBtn').addEventListener('click', () => {
+        document.getElementById('memBatchTopupBtn').addEventListener('click', async () => {
             if (_selectedMemberIds.size === 0) return;
             if (Object.keys(_memEditState).length > 0) {
-                if (!confirm('有會員資料尚未儲存，批量補點將套用至已儲存的資料。確定繼續嗎？')) return;
+                if (!await Core.confirm('有會員資料尚未儲存，批量補點將套用至已儲存的資料。確定繼續嗎？', { title: '尚未儲存' })) return;
             }
             const names = getMembers().filter(m => _selectedMemberIds.has(m.id)).map(m => escapeHtml(m.name));
             document.getElementById('batchTopupInfo').innerHTML =
@@ -392,14 +392,18 @@ window.Mem = (function () {
                 updateSaveBar();
                 render();
             } else if (resetBtn) {
-                if (confirm('確定要將此會員的密碼還原為他的手機號嗎？')) {
+                const ok = await Core.confirm(
+                    '確定要重設此會員的密碼嗎？\n\n重設後該會員下次登入會進入「首次登入設定」流程，必須設定新密碼才能進入會員中心。',
+                    { title: '重設密碼', confirmText: '重設', type: 'danger' }
+                );
+                if (ok) {
                     const mlist  = getMembers();
                     const target = mlist.find(x => x.id === resetBtn.dataset.id);
-                    target.password    = await hashPassword(resetBtn.dataset.phone);
-                    target.isFirstLogin = false;
+                    target.password    = '';
+                    target.isFirstLogin = true;
                     saveMembers(mlist);
-                    logAdminAction('MEMBER_PWD_RESET', `${target.id} ${target.name}`, `密碼還原為手機號`);
-                    Core.toast(`已重設密碼為手機號：${resetBtn.dataset.phone}`);
+                    logAdminAction('MEMBER_PWD_RESET', `${target.id} ${target.name}`, '重設密碼，要求下次登入重新設定');
+                    Core.toast(`${target.name} 的密碼已重設，下次登入需重新設定密碼`);
                 }
             } else if (histBtn) {
                 openMemberHistoryModal(histBtn.dataset.id);

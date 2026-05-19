@@ -103,6 +103,7 @@ window.Inv = (function () {
                 : '';
             const cc = Core.getCatColor(d.category || item.category);
             const bc = escapeHtml(item.barcode);
+            const hasBatches = Array.isArray(item.batches) && item.batches.length > 0;
             const catOpts = cats.map(c =>
                 `<option value="${escapeHtml(c)}" ${c === d.category ? 'selected' : ''}>${escapeHtml(c)}</option>`
             ).join('');
@@ -113,13 +114,21 @@ window.Inv = (function () {
                     ? `<td>${escapeHtml(expInfo.date)}${expiryBadge(expInfo)}</td>`
                     : `<td><span style="color:var(--text-secondary); font-size:0.85rem;">—</span></td>`;
 
+            // 有批號的品項，行內編輯不允許直接改庫存量（避免覆蓋批號資料）
+            const qtyEditCell = hasBatches
+                ? `<td>
+                        <span style="font-weight:600; color:var(--text-secondary);">${d.quantity}</span>
+                        <div style="font-size:0.7rem; color:var(--text-secondary); margin-top:0.2rem; line-height:1.3;">由批號加總，請改用「批號」</div>
+                   </td>`
+                : `<td><input type="number" class="inv-field" data-barcode="${bc}" data-field="quantity"   value="${d.quantity}"   min="0" style="width:70px;"></td>`;
+
             const tr = document.createElement('tr');
             if (isEditing) tr.classList.add('editing-row');
             tr.innerHTML = isEditing ? `
                 <td><code>${bc}</code></td>
                 <td><input type="text"   class="inv-field" data-barcode="${bc}" data-field="name"       value="${escapeHtml(d.name)}"></td>
                 <td><select              class="inv-field" data-barcode="${bc}" data-field="category">${catOpts}</select></td>
-                <td><input type="number" class="inv-field" data-barcode="${bc}" data-field="quantity"   value="${d.quantity}"   min="0" style="width:70px;"></td>
+                ${qtyEditCell}
                 <td><input type="number" class="inv-field" data-barcode="${bc}" data-field="pointsCost" value="${d.pointsCost}" min="1" style="width:70px;"></td>
                 ${expCell}
                 <td>
@@ -300,7 +309,7 @@ window.Inv = (function () {
         });
 
         list.querySelectorAll('.del-cat-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
+            btn.addEventListener('click', async (e) => {
                 const idx     = parseInt(e.target.closest('[data-idx]').dataset.idx);
                 const cats    = getCategories();
                 const catName = cats[idx];
@@ -308,7 +317,7 @@ window.Inv = (function () {
                 const msg = inUse
                     ? `分類「${catName}」仍有庫存項目使用，刪除後相關項目將顯示為「需更新」，確定要繼續嗎？`
                     : `確定要刪除分類「${catName}」嗎？`;
-                if (!confirm(msg)) return;
+                if (!await Core.confirm(msg, { title: '刪除分類', confirmText: '刪除', type: 'danger' })) return;
                 cats.splice(idx, 1);
                 saveCategories(cats);
                 const stored = getCatColors();
@@ -497,14 +506,14 @@ window.Inv = (function () {
                 const idx = inv.findIndex(i => i.barcode === barcode);
                 if (idx === -1) return;
                 if (inv[idx].category !== data.category) catChanges[barcode] = data.category;
-                // quantity 直接覆蓋；若有 batches，提示但仍依使用者輸入為主
-                Object.assign(inv[idx], data);
-                // 保留既有 batches 結構；若 quantity 與 batches 加總不一致，清掉 batches（讓使用者重新建立）
-                if (Array.isArray(inv[idx].batches) && inv[idx].batches.length > 0) {
-                    const sum = inv[idx].batches.reduce((s, b) => s + (parseInt(b.quantity,10) || 0), 0);
-                    if (sum !== inv[idx].quantity) {
-                        delete inv[idx].batches;
-                    }
+                const hasBatches = Array.isArray(inv[idx].batches) && inv[idx].batches.length > 0;
+                // 有批號的品項：quantity 由批號加總決定，忽略行內 quantity 輸入（UI 已設為唯讀）
+                const { quantity, ...rest } = data;
+                Object.assign(inv[idx], rest);
+                if (hasBatches) {
+                    inv[idx].quantity = inv[idx].batches.reduce((s, b) => s + (parseInt(b.quantity, 10) || 0), 0);
+                } else {
+                    inv[idx].quantity = (typeof quantity === 'number' && quantity >= 0) ? quantity : inv[idx].quantity;
                 }
             });
             saveInventory(inv);
@@ -681,11 +690,11 @@ window.Inv = (function () {
         });
 
         // 批號管理 Modal
-        document.getElementById('batchManageTableBody').addEventListener('click', (e) => {
+        document.getElementById('batchManageTableBody').addEventListener('click', async (e) => {
             const delBtn = e.target.closest('.batch-del-btn');
             if (!delBtn) return;
             const id = delBtn.dataset.id;
-            if (!confirm(`確定刪除批號 ${id}？`)) return;
+            if (!await Core.confirm(`確定刪除批號 ${id}？`, { title: '刪除批號', confirmText: '刪除', type: 'danger' })) return;
             const inv = getInventory();
             const idx = inv.findIndex(i => i.barcode === _batchEditingBarcode);
             if (idx === -1) return;

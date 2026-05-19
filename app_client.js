@@ -89,7 +89,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const members = getMembers();
         const idx = members.findIndex(m => m.id === tempFirstLoginUser.id);
         if (idx !== -1) {
-            members[idx].password = await hashPassword(pwd);
+            members[idx].password = await hashPasswordSalted(pwd);
             members[idx].birthday = bday;
             members[idx].address = addr;
             members[idx].isFirstLogin = false;
@@ -156,7 +156,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const idx = members.findIndex(m => m.id === userTemp.id);
         if (idx !== -1) {
             const pwd = document.getElementById('profilePassword').value.trim();
-            if (pwd) members[idx].password = await hashPassword(pwd);
+            if (pwd) members[idx].password = await hashPasswordSalted(pwd);
             members[idx].birthday = document.getElementById('profileBirthday').value;
             members[idx].address = document.getElementById('profileAddress').value;
             saveMembers(members);

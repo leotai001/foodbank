@@ -270,7 +270,11 @@ window.Dash = (function () {
 
         const members     = getMembers();
         const redemptions = getRedemptions()
-            .filter(r => r.date.startsWith(dateStr))
+            .filter(r => {
+                const d = new Date(r.date);
+                const local = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+                return local === dateStr;
+            })
             .sort((a, b) => new Date(a.date) - new Date(b.date));
         const uniqueMembers = new Set(redemptions.map(r => r.memberId)).size;
 

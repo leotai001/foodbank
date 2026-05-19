@@ -282,8 +282,8 @@ window.DataMgr = (function () {
         });
 
         document.getElementById('confirmClearBtn').addEventListener('click', () => {
-            if (!_pendingClearJob) { alert('請先按「預覽將刪除的筆數」確認範圍。'); return; }
-            if (_pendingClearJob.total === 0) { alert('此區間內無符合條件的資料，無需清除。'); return; }
+            if (!_pendingClearJob) { Core.toast('請先按「預覽將刪除的筆數」確認範圍', 'warn'); return; }
+            if (_pendingClearJob.total === 0) { Core.toast('此區間內無符合條件的資料，無需清除', 'warn'); return; }
             const { counts, doRedemptions, doPointsLog, doInventoryLog, doAuditLog, startVal, endVal } = _pendingClearJob;
             document.getElementById('clearDataSummary').innerHTML = `
                 <p>確定要清除以下資料嗎？<strong style="color:var(--danger);">此操作無法復原。</strong></p>
@@ -305,7 +305,7 @@ window.DataMgr = (function () {
         });
 
         document.getElementById('executeClearBtn').addEventListener('click', () => {
-            if (!Core.isSuper()) { alert('權限不足：僅 super 管理員可清除歷史資料'); return; }
+            if (!Core.isSuper()) { Core.toast('權限不足：僅 super 管理員可清除歷史資料', 'error'); return; }
             if (!_pendingClearJob) return;
             const { start, end, startVal, endVal, doRedemptions, doPointsLog, doInventoryLog, doAuditLog, counts } = _pendingClearJob;
 
@@ -383,15 +383,10 @@ window.DataMgr = (function () {
             const idx = admins.findIndex(a => a.id === me.id);
             if (idx === -1) { showError('找不到目前管理員資料'); return; }
 
-            let currentMatch;
-            if (isHashed(admins[idx].password)) {
-                currentMatch = admins[idx].password === await hashPassword(currentPwd);
-            } else {
-                currentMatch = admins[idx].password === currentPwd;
-            }
-            if (!currentMatch) { showError('目前密碼錯誤'); return; }
+            const { match } = await verifyStoredPassword(currentPwd, admins[idx].password);
+            if (!match) { showError('目前密碼錯誤'); return; }
 
-            admins[idx].password = await hashPassword(newPwd);
+            admins[idx].password = await hashPasswordSalted(newPwd);
             saveAdmins(admins);
             logAdminAction('ADMIN_PWD_CHANGE', admins[idx].username, '修改自己密碼');
 
@@ -405,7 +400,7 @@ window.DataMgr = (function () {
 
         // ---- 管理員管理：列表 ----
         document.getElementById('addAdminBtn').addEventListener('click', () => {
-            if (!Core.isSuper()) { alert('權限不足'); return; }
+            if (!Core.isSuper()) { Core.toast('權限不足', 'error'); return; }
             openAdminEditModal(null);
         });
         document.getElementById('adminListTableBody').addEventListener('click', async (e) => {
@@ -419,12 +414,12 @@ window.DataMgr = (function () {
                 const target = admins.find(a => a.id === id);
                 if (!target) return;
                 const me = Core.getCurrent();
-                if (target.id === me.id) { alert('無法刪除自己'); return; }
+                if (target.id === me.id) { Core.toast('無法刪除自己', 'error'); return; }
                 const remainingSupers = admins.filter(a => a.role === 'super' && a.status === 'active' && a.id !== id).length;
                 if (target.role === 'super' && remainingSupers === 0) {
-                    alert('無法刪除最後一位 super 管理員'); return;
+                    Core.toast('無法刪除最後一位 super 管理員', 'error'); return;
                 }
-                if (!confirm(`確定要刪除管理員「${target.username}」嗎？`)) return;
+                if (!await Core.confirm(`確定要刪除管理員「${target.username}」嗎？`, { title: '刪除管理員', confirmText: '刪除', type: 'danger' })) return;
                 const next = admins.filter(a => a.id !== id);
                 saveAdmins(next);
                 logAdminAction('ADMIN_DELETE', target.username, `刪除管理員（角色 ${target.role}）`);
@@ -435,7 +430,7 @@ window.DataMgr = (function () {
         // ---- 管理員編輯 Form ----
         document.getElementById('adminEditForm').addEventListener('submit', async (e) => {
             e.preventDefault();
-            if (!Core.isSuper()) { alert('權限不足'); return; }
+            if (!Core.isSuper()) { Core.toast('權限不足', 'error'); return; }
             const errEl = document.getElementById('adminEditError');
             const showError = (msg) => { errEl.textContent = msg; errEl.style.display = 'block'; };
             errEl.style.display = 'none';
@@ -468,7 +463,7 @@ window.DataMgr = (function () {
                 admins[idx].username = username;
                 admins[idx].role = (id === me.id) ? before.role : role;
                 admins[idx].status = (id === me.id) ? before.status : status;
-                if (password) admins[idx].password = await hashPassword(password);
+                if (password) admins[idx].password = await hashPasswordSalted(password);
                 saveAdmins(admins);
 
                 const detailParts = [];
@@ -485,7 +480,7 @@ window.DataMgr = (function () {
                 const newId = 'A' + String(maxNum + 1).padStart(3, '0');
                 admins.push({
                     id: newId, username,
-                    password: await hashPassword(password),
+                    password: await hashPasswordSalted(password),
                     role, status,
                     createdAt: new Date().toISOString(),
                     lastLoginAt: null

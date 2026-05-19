@@ -459,3 +459,90 @@ tr:hover td {
     .toast-host { top: 0.5rem; right: 0.5rem; left: 0.5rem; }
     .toast { min-width: 0; max-width: 100%; }
 }
+
+/* ===========================================================
+ * Utility classes — 抽出散落 inline style 的常見 pattern
+ * 設計原則：低 specificity、組合使用、不引入過多斷層
+ * =========================================================== */
+
+/* Layout */
+.flex            { display: flex; }
+.flex-col        { display: flex; flex-direction: column; }
+.flex-wrap       { flex-wrap: wrap; }
+.flex-end        { justify-content: flex-end; }
+.flex-between    { justify-content: space-between; }
+.flex-center     { justify-content: center; align-items: center; }
+.items-center    { align-items: center; }
+.items-start     { align-items: flex-start; }
+.items-end       { align-items: flex-end; }
+
+/* Gap（與 flex 搭配） */
+.gap-xs   { gap: 0.25rem; }
+.gap-sm   { gap: 0.5rem; }
+.gap-md   { gap: 0.75rem; }
+.gap-lg   { gap: 1rem; }
+.gap-xl   { gap: 1.5rem; }
+.gap-xxl  { gap: 2rem; }
+
+/* Margin */
+.mt-0  { margin-top: 0; }
+.mt-sm { margin-top: 0.5rem; }
+.mt-md { margin-top: 1rem; }
+.mt-lg { margin-top: 1.5rem; }
+.mt-xl { margin-top: 2rem; }
+.mb-0  { margin-bottom: 0; }
+.mb-sm { margin-bottom: 0.5rem; }
+.mb-md { margin-bottom: 1rem; }
+.mb-lg { margin-bottom: 1.5rem; }
+.mb-xl { margin-bottom: 2rem; }
+
+/* Typography */
+.text-xs       { font-size: 0.75rem; }
+.text-sm       { font-size: 0.875rem; }
+.text-md       { font-size: 0.95rem; }
+.text-lg       { font-size: 1.1rem; }
+.text-bold     { font-weight: 600; }
+.text-muted    { color: var(--text-secondary); }
+.text-primary  { color: var(--primary-color); }
+.text-danger   { color: var(--danger); }
+.text-success  { color: var(--success); }
+.text-warn     { color: #f59e0b; }
+.leading-loose { line-height: 1.9; }
+
+/* Alert boxes — 取代散落的 background+border+padding 組合 */
+.alert {
+    padding: 0.85rem 1rem;
+    border-radius: var(--radius);
+    margin-bottom: 1.25rem;
+    font-size: 0.875rem;
+    line-height: 1.9;
+    border: 1px solid;
+}
+.alert-info     { background: #eff6ff; border-color: var(--primary-color); color: #1e40af; }
+.alert-warn     { background: #fef9c3; border-color: #fbbf24; color: #92400e; }
+.alert-danger   { background: #fee2e2; border-color: #fca5a5; color: #991b1b; }
+.alert-success  { background: #f0fdf4; border-color: var(--success); color: #065f46; }
+
+/* 危險區塊 card 邊框（清除歷史等高風險操作） */
+.card.card-danger { border-color: #fca5a5; }
+
+/* Modal 內按鈕列（取消 / 確認的右對齊組合） */
+.modal-actions {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: flex-end;
+    margin-top: 1.5rem;
+    flex-wrap: wrap;
+}
+
+/* 子網格：自動換行的響應式 grid，常用於統計卡 / 匯出按鈕排 */
+.grid-auto-fit {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 1rem;
+}
+.grid-auto-fit-sm {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 0.75rem;
+}
