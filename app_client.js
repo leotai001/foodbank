@@ -3,8 +3,39 @@ document.addEventListener('DOMContentLoaded', () => {
     const firstLoginSection = document.getElementById('firstLoginSection');
     const memberSection = document.getElementById('memberSection');
 
+    // 確認 Dialog（Promise-based，與後台 Core.confirm 行為一致；resolve true = 確認 / false = 取消）
+    function confirmDialog(message, { title = '確認', confirmText = '確認', cancelText = '取消', type = 'default' } = {}) {
+        return new Promise(resolve => {
+            const overlay = document.createElement('div');
+            overlay.className = 'modal-overlay active';
+            const okClass = type === 'danger' ? 'btn btn-danger' : 'btn';
+            overlay.innerHTML = `
+                <div class="modal-content" style="max-width: 420px;">
+                    <div class="modal-header" style="margin-bottom:1rem;"><h3>${escapeHtml(title)}</h3></div>
+                    <div style="line-height:1.7; margin-bottom:1.5rem; white-space:pre-wrap;">${escapeHtml(message)}</div>
+                    <div style="display:flex; gap:0.75rem; justify-content:flex-end; flex-wrap:wrap;">
+                        <button type="button" class="btn btn-outline _dlg-cancel">${escapeHtml(cancelText)}</button>
+                        <button type="button" class="${okClass} _dlg-ok">${escapeHtml(confirmText)}</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(overlay);
+            const cleanup = (v) => { document.removeEventListener('keydown', onKey, true); overlay.remove(); resolve(v); };
+            const onKey = (e) => {
+                if (e.key === 'Escape') { e.stopPropagation(); cleanup(false); }
+                else if (e.key === 'Enter') { e.stopPropagation(); cleanup(true); }
+            };
+            document.addEventListener('keydown', onKey, true);
+            overlay.querySelector('._dlg-ok').addEventListener('click', () => cleanup(true));
+            overlay.querySelector('._dlg-cancel').addEventListener('click', () => cleanup(false));
+            overlay.addEventListener('click', (e) => { if (e.target === overlay) cleanup(false); });
+            setTimeout(() => overlay.querySelector('._dlg-ok').focus(), 50);
+        });
+    }
+
     // 條碼 RWD：依視窗寬度動態調整 width，避免長條碼在手機被截斷
     let _currentBarcodeValue = null;
+    let _currentMemberName = null;
     function renderMemberBarcode(barcodeStr) {
         const vw = window.innerWidth;
         const width = vw < 480 ? 1.2 : vw < 768 ? 1.6 : 2;
@@ -31,7 +62,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const overlay = document.createElement('div');
         overlay.id = 'barcodeFullscreenOverlay';
         overlay.style.cssText = 'position:fixed; inset:0; background:#000; z-index:9999; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:1rem; cursor:pointer;';
+        const nameHtml = _currentMemberName
+            ? `<div style="color:#fff; font-size:1.5rem; font-weight:600; margin-bottom:1.25rem; text-align:center;">${escapeHtml(_currentMemberName)}</div>`
+            : '';
         overlay.innerHTML = `
+            ${nameHtml}
             <div style="background:#fff; padding:1.5rem 2rem; border-radius:12px; max-width:95vw; max-height:80vh; overflow:auto;">
                 <svg id="fullscreenBarcode"></svg>
             </div>
@@ -69,7 +104,33 @@ document.addEventListener('DOMContentLoaded', () => {
         overlay.addEventListener('click', close);
         document.addEventListener('keydown', onKey, true);
     }
-    
+
+    // 密碼欄顯示/隱藏切換（手機友善）：為每個 password 欄位包一層並加上 👁 切換鈕
+    function setupPasswordToggles() {
+        document.querySelectorAll('input[type="password"]').forEach(input => {
+            if (input.dataset.toggleWired) return;
+            input.dataset.toggleWired = '1';
+
+            const wrapper = document.createElement('div');
+            wrapper.className = 'password-field';
+            input.parentNode.insertBefore(wrapper, input);
+            wrapper.appendChild(input);
+
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'password-toggle';
+            btn.textContent = '顯示';
+            btn.setAttribute('aria-label', '顯示密碼');
+            btn.addEventListener('click', () => {
+                const show = input.type === 'password';
+                input.type = show ? 'text' : 'password';
+                btn.textContent = show ? '隱藏' : '顯示';
+                btn.setAttribute('aria-label', show ? '隱藏密碼' : '顯示密碼');
+            });
+            wrapper.appendChild(btn);
+        });
+    }
+
     // Login
     const loginForm = document.getElementById('loginForm');
     const phoneInput = document.getElementById('phoneInput');
@@ -85,23 +146,31 @@ document.addEventListener('DOMContentLoaded', () => {
     const sectionIds = ['dashboardView', 'pointsHistoryView', 'profileView'];
 
     navItems.forEach(nav => {
-        nav.addEventListener('click', (e) => {
+        nav.addEventListener('click', () => {
+            const targetId = nav.getAttribute('data-target');
+            // 沒有 data-target（例如手機版「登出」tab）→ 不切視圖也不改 active
+            if (!targetId) return;
             navItems.forEach(n => n.classList.remove('active'));
-            e.target.classList.add('active');
-            const targetId = e.target.getAttribute('data-target');
-            if (targetId) {
-                sectionIds.forEach(id => {
-                    const el = document.getElementById(id);
-                    if (el) el.classList.toggle('hidden', id !== targetId);
-                });
-            }
+            nav.classList.add('active');
+            sectionIds.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.classList.toggle('hidden', id !== targetId);
+            });
         });
     });
 
-    // 條碼卡片點擊 → 全螢幕
-    document.getElementById('barcodeCard').addEventListener('click', () => {
+    // 手機版「登出」tab → 觸發既有的登出邏輯
+    document.getElementById('mobileLogoutBtn')?.addEventListener('click', () => {
+        document.getElementById('logoutBtn').click();
+    });
+
+    // 條碼圖片點擊 → 全螢幕（只在條碼框上觸發，避免整張卡片都可點）
+    document.getElementById('memberBarcodeBox').addEventListener('click', () => {
         if (_currentBarcodeValue) showFullscreenBarcode(_currentBarcodeValue);
     });
+
+    // 密碼欄顯示/隱藏切換
+    setupPasswordToggles();
 
     // 點數異動明細：月份篩選
     initPointsMonthFilter();
@@ -162,8 +231,16 @@ document.addEventListener('DOMContentLoaded', () => {
     firstLoginForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const pwd = document.getElementById('setupPassword').value;
+        const confirmPwd = document.getElementById('setupPasswordConfirm').value;
         const bday = document.getElementById('setupBirthday').value;
         const addr = document.getElementById('setupAddress').value;
+
+        const firstLoginError = document.getElementById('firstLoginError');
+        firstLoginError.style.display = 'none';
+        const showFirstLoginError = (msg) => { firstLoginError.textContent = msg; firstLoginError.style.display = 'block'; };
+
+        if (pwd.length < 6) { showFirstLoginError('密碼至少需要 6 個字元'); return; }
+        if (pwd !== confirmPwd) { showFirstLoginError('兩次輸入的密碼不一致，請重新確認'); return; }
 
         const members = getMembers();
         const idx = members.findIndex(m => m.id === tempFirstLoginUser.id);
@@ -180,23 +257,37 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    document.getElementById('logoutBtn').addEventListener('click', () => {
+    // 實際登出邏輯（不含確認；給強制登出 / 過期登出共用）
+    function doLogout() {
         sessionStorage.removeItem('currentClientUser');
         _currentBarcodeValue = null;
+        _currentMemberName = null;
         memberSection.classList.add('hidden');
         firstLoginSection.classList.add('hidden');
         loginSection.classList.remove('hidden');
         loginForm.reset();
         loginError.style.display = 'none';
-        
+
         // Reset view to dashboard
         document.querySelector('[data-target="dashboardView"]').click();
+    }
+
+    // 使用者手動點登出 → 先確認再登出
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+        const ok = await confirmDialog('確定要登出嗎？', {
+            title: '登出確認',
+            confirmText: '登出',
+            cancelText: '取消',
+            type: 'danger'
+        });
+        if (ok) doLogout();
     });
 
     function showMemberSection(userId) {
         const user = getMembers().find(m => m.id === userId);
         if (!user || user.status === 'expired') {
-            document.getElementById('logoutBtn').click();
+            // 強制登出（會員過期 / 找不到資料），不顯示確認
+            doLogout();
             return;
         }
 
@@ -210,6 +301,8 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Generate Barcode（依視窗寬度自適應）
         _currentBarcodeValue = user.barcode;
+        _currentMemberName = user.name;
+        document.getElementById('barcodeMemberName').textContent = user.name;
         renderMemberBarcode(user.barcode);
 
         // Profile Info
@@ -338,12 +431,14 @@ document.addEventListener('DOMContentLoaded', () => {
         if (idx === -1) { showError('找不到會員資料，請重新登入'); return; }
 
         const newPwd = document.getElementById('profilePassword').value;
+        const confirmPwd = document.getElementById('profilePasswordConfirm').value;
         const curPwd = document.getElementById('profileCurrentPassword').value;
 
         // 只有要改密碼時才驗證目前密碼
         if (newPwd) {
             if (!curPwd) { showError('要修改密碼，請先輸入目前密碼以驗證身份'); return; }
             if (newPwd.length < 6) { showError('新密碼至少需要 6 個字元'); return; }
+            if (newPwd !== confirmPwd) { showError('兩次輸入的新密碼不一致，請重新確認'); return; }
             const { match } = await verifyStoredPassword(curPwd, members[idx].password);
             if (!match) { showError('目前密碼錯誤，無法更新密碼'); return; }
             members[idx].password = await hashPasswordSalted(newPwd);
@@ -355,6 +450,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // 清掉密碼欄位避免殘留
         document.getElementById('profilePassword').value = '';
+        document.getElementById('profilePasswordConfirm').value = '';
         document.getElementById('profileCurrentPassword').value = '';
 
         successMsg.style.display = 'block';
@@ -363,7 +459,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderHistory(memberId) {
         const history = getRedemptions().filter(r => r.memberId === memberId)
-            .sort((a, b) => new Date(b.date) - new Date(a.date));
+            .sort((a, b) => new Date(b.date) - new Date(a.date))
+            .slice(0, 10); // 固定只顯示最新 10 筆
 
         const tbody = document.getElementById('userRedemptionHistory');
         tbody.innerHTML = '';

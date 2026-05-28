@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>食物銀行 | 用戶端</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
@@ -19,7 +19,7 @@
             <form id="loginForm">
                 <div class="form-group">
                     <label for="phoneInput">電話號碼</label>
-                    <input type="text" id="phoneInput" placeholder="例如: 0912345678" required>
+                    <input type="tel" id="phoneInput" inputmode="numeric" autocomplete="tel" placeholder="例如: 0912345678" required>
                 </div>
                 <div class="form-group">
                     <label for="passwordInput">密碼</label>
@@ -38,8 +38,12 @@
             <p>為了確保您的權益，請完成以下資料設定</p>
             <form id="firstLoginForm">
                 <div class="form-group">
-                    <label for="setupPassword">設定您的登入密碼 *</label>
-                    <input type="password" id="setupPassword" required minlength="6">
+                    <label for="setupPassword">設定您的登入密碼 * <span class="text-muted text-xs">（至少 6 個字元）</span></label>
+                    <input type="password" id="setupPassword" required minlength="6" autocomplete="new-password">
+                </div>
+                <div class="form-group">
+                    <label for="setupPasswordConfirm">再次輸入密碼 *</label>
+                    <input type="password" id="setupPasswordConfirm" required minlength="6" autocomplete="new-password">
                 </div>
                 <div class="form-group">
                     <label for="setupBirthday">出生年月日 (YYYY-MM-DD)</label>
@@ -49,6 +53,7 @@
                     <label for="setupAddress">居住地址</label>
                     <input type="text" id="setupAddress" placeholder="輸入聯絡地址">
                 </div>
+                <p id="firstLoginError" class="text-danger text-sm mb-md" style="display: none; font-weight: 500;"></p>
                 <button type="submit" class="btn">完成設定並登入</button>
             </form>
         </div>
@@ -56,19 +61,23 @@
 
     <!-- 會員專區 (登入後顯示) -->
     <div id="memberSection" class="app-container hidden">
-        
+        <!-- 手機版頂部標題列（桌機隱藏） -->
+        <header class="mobile-topbar">🌿 會員中心</header>
+
         <!-- 用戶端側邊欄 -->
         <aside class="sidebar">
             <div class="sidebar-header">
                 🌿 會員中心
             </div>
             <nav class="sidebar-nav">
-                <a class="nav-item active" href="javascript:void(0)" data-target="dashboardView">專屬兌換區</a>
-                <a class="nav-item" href="javascript:void(0)" data-target="pointsHistoryView">點數異動明細</a>
-                <a class="nav-item" href="javascript:void(0)" data-target="profileView">個人資料設定</a>
-                <div style="margin-top: 2rem; padding: 0 1.5rem;">
+                <a class="nav-item active" href="javascript:void(0)" data-target="dashboardView"><span class="nav-icon" aria-hidden="true">🎁</span><span class="nav-label">專屬兌換區</span><span class="nav-label-short" aria-hidden="true">兌換</span></a>
+                <a class="nav-item" href="javascript:void(0)" data-target="pointsHistoryView"><span class="nav-icon" aria-hidden="true">💰</span><span class="nav-label">點數異動明細</span><span class="nav-label-short" aria-hidden="true">點數</span></a>
+                <a class="nav-item" href="javascript:void(0)" data-target="profileView"><span class="nav-icon" aria-hidden="true">👤</span><span class="nav-label">個人資料設定</span><span class="nav-label-short" aria-hidden="true">個人</span></a>
+                <!-- 登出：桌機顯示為底部按鈕，手機融入 tab bar 成為第 4 個 tab -->
+                <div class="sidebar-action">
                     <button id="logoutBtn" class="btn btn-outline btn-sm">登出</button>
                 </div>
+                <a class="nav-item nav-logout-mobile" href="javascript:void(0)" id="mobileLogoutBtn" aria-label="登出"><span class="nav-icon" aria-hidden="true">⏻</span><span class="nav-label-short" aria-hidden="true">登出</span></a>
             </nav>
         </aside>
 
@@ -83,11 +92,13 @@
                 </div>
 
                 <!-- 會員條碼區塊 -->
-                <div class="card" id="barcodeCard" style="text-align: center; cursor: pointer;" title="點擊放大顯示，方便工作人員掃描">
-                    <h3 class="text-muted mb-md">您的專屬會員條碼 <span class="text-xs">（點擊放大）</span></h3>
-                    <div class="barcode-wrapper">
+                <div class="card" id="barcodeCard" style="text-align: center;">
+                    <h3 class="text-muted mb-md">您的專屬會員條碼 <span class="text-xs">（點條碼放大）</span></h3>
+                    <div class="barcode-wrapper" id="memberBarcodeBox" style="cursor: pointer;" title="點擊放大顯示，方便工作人員掃描">
                         <svg id="memberBarcode"></svg>
                     </div>
+                    <div id="barcodeMemberName" class="text-bold" style="font-size: 1.15rem; margin-top: 0.25rem;"></div>
+                    <p class="text-muted text-sm" style="margin-top: 0.75rem;">📲 請出示此條碼給工作人員掃描兌換</p>
                 </div>
 
                 <div class="card" style="text-align: center; padding: 3rem 2rem;">
@@ -96,7 +107,7 @@
                 </div>
 
                 <div class="card">
-                    <h2 class="card-title">我的兌換紀錄</h2>
+                    <h2 class="card-title">近期兌換紀錄</h2>
                     <div class="table-responsive">
                         <table>
                             <thead>
@@ -117,32 +128,39 @@
             <!-- 點數異動明細 -->
             <section id="pointsHistoryView" class="view-section hidden">
                 <div class="header-bar">
-                    <h2>點數異動明細</h2>
+                    <div>
+                        <h2>點數異動明細</h2>
+                        <p class="text-muted text-sm">顯示您近一年的點數變動紀錄，包含初始發放、補點、扣點、兌換核銷。可選擇特定月份查詢當月所有兌換明細。</p>
+                    </div>
                 </div>
-                <div class="card">
-                    <p class="text-muted text-sm mb-md">顯示您近一年的點數變動紀錄，包含初始發放、補點、扣點、兌換核銷。可選擇特定月份查詢當月所有兌換明細。</p>
 
-                    <!-- 月份篩選 -->
-                    <div class="flex flex-wrap items-center gap-md mb-md">
+                <!-- 月份篩選 -->
+                <div class="card">
+                    <div class="flex flex-wrap items-center gap-md">
                         <label for="pointsMonthFilter" class="text-bold text-sm">月份篩選</label>
                         <select id="pointsMonthFilter" style="max-width: 220px;"></select>
                         <span id="pointsFilterInfo" class="text-muted text-xs"></span>
                     </div>
+                </div>
 
-                    <div class="stats-grid mb-md">
-                        <div class="stat-card">
-                            <div class="stat-value text-success" id="userTotalTopup">0</div>
-                            <div class="stat-label" id="userTopupLabel">累積補點</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-value text-danger" id="userTotalDeduct">0</div>
-                            <div class="stat-label" id="userDeductLabel">累積扣點 / 兌換</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-value text-primary" id="userTotalChanges">0</div>
-                            <div class="stat-label" id="userChangesLabel">異動次數</div>
-                        </div>
+                <!-- 統計卡（3 個並排） -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-value text-success" id="userTotalTopup">0</div>
+                        <div class="stat-label" id="userTopupLabel">累積補點</div>
                     </div>
+                    <div class="stat-card">
+                        <div class="stat-value text-danger" id="userTotalDeduct">0</div>
+                        <div class="stat-label" id="userDeductLabel">累積扣點 / 兌換</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value text-primary" id="userTotalChanges">0</div>
+                        <div class="stat-label" id="userChangesLabel">異動次數</div>
+                    </div>
+                </div>
+
+                <!-- 明細表 -->
+                <div class="card">
                     <div class="table-responsive">
                         <table>
                             <thead>
@@ -182,6 +200,10 @@
                         <div class="form-group">
                             <label>重新設定密碼 <span class="text-muted text-xs">（不更改請留白）</span></label>
                             <input type="password" id="profilePassword" placeholder="輸入新密碼（至少 6 字元）" autocomplete="new-password">
+                        </div>
+                        <div class="form-group">
+                            <label>確認新密碼 <span class="text-muted text-xs">（再次輸入新密碼）</span></label>
+                            <input type="password" id="profilePasswordConfirm" placeholder="再次輸入新密碼" autocomplete="new-password">
                         </div>
                         <div class="form-group">
                             <label>出生年月日</label>

@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>食物銀行 | 管理後台</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
@@ -15,19 +15,32 @@
         <aside class="sidebar">
             <div class="sidebar-header">🌱 食物銀行後台</div>
             <nav class="sidebar-nav">
-                <a class="nav-item active" href="javascript:void(0)" data-target="dashboardView">📊 資料統計</a>
-                <a class="nav-item" href="javascript:void(0)" data-target="inventoryView">📦 庫存管理</a>
-                <a class="nav-item" href="javascript:void(0)" data-target="membersView">👥 會員管理</a>
-                <a class="nav-item" href="javascript:void(0)" data-target="redemptionsView">🛒 掃碼兌換作業</a>
-                <a class="nav-item" href="javascript:void(0)" data-target="dataView">🗂️ 資料管理</a>
-                <a class="nav-item" href="javascript:void(0)" data-target="adminManageView" data-role-only="super">👤 管理員管理</a>
-                 <div style="margin-top: 2rem; padding: 0 1.5rem; display: flex; flex-direction: column; gap: 0.5rem;">
+                <a class="nav-item active" href="javascript:void(0)" data-target="dashboardView"><span class="nav-icon" aria-hidden="true">📊</span><span class="nav-label">資料統計</span><span class="nav-label-short" aria-hidden="true">統計</span></a>
+                <a class="nav-item" href="javascript:void(0)" data-target="inventoryView"><span class="nav-icon" aria-hidden="true">📦</span><span class="nav-label">庫存管理</span><span class="nav-label-short" aria-hidden="true">庫存</span></a>
+                <a class="nav-item" href="javascript:void(0)" data-target="membersView"><span class="nav-icon" aria-hidden="true">👥</span><span class="nav-label">會員管理</span><span class="nav-label-short" aria-hidden="true">會員</span></a>
+                <a class="nav-item" href="javascript:void(0)" data-target="redemptionsView"><span class="nav-icon" aria-hidden="true">🛒</span><span class="nav-label">掃碼兌換作業</span><span class="nav-label-short" aria-hidden="true">兌換</span></a>
+                <a class="nav-item nav-secondary" href="javascript:void(0)" data-target="dataView"><span class="nav-icon" aria-hidden="true">🗂️</span><span class="nav-label">資料管理</span></a>
+                <a class="nav-item nav-secondary" href="javascript:void(0)" data-target="adminManageView" data-role-only="super"><span class="nav-icon" aria-hidden="true">👤</span><span class="nav-label">管理員管理</span></a>
+                <!-- 手機底部 tab bar 才顯示的「更多」按鈕 -->
+                <a class="nav-item nav-more" href="javascript:void(0)" id="mobileMoreBtn"><span class="nav-icon" aria-hidden="true">⋯</span><span class="nav-label">更多</span><span class="nav-label-short" aria-hidden="true">更多</span></a>
+                <div class="sidebar-footer">
                     <div id="currentAdminInfo" style="font-size:0.8rem; color:var(--text-secondary); line-height:1.5; margin-bottom:0.25rem;"></div>
                     <button id="changeMyPwdBtn" class="btn btn-outline btn-sm">🔑 修改密碼</button>
                     <button id="adminLogoutBtn" class="btn btn-outline btn-sm">登出後台</button>
                 </div>
             </nav>
         </aside>
+
+        <!-- 手機「更多」彈出選單（≤768px 才顯示） -->
+        <div class="more-backdrop" id="mobileMoreBackdrop" hidden></div>
+        <div class="more-menu" id="mobileMoreMenu" hidden role="menu" aria-label="更多選項">
+            <a class="more-item" href="javascript:void(0)" data-more-target="dataView" role="menuitem">🗂️ 資料管理</a>
+            <a class="more-item" href="javascript:void(0)" data-more-target="adminManageView" data-role-only="super" role="menuitem">👤 管理員管理</a>
+            <div class="more-divider"></div>
+            <div class="more-info" id="mobileAdminInfo"></div>
+            <a class="more-item" href="javascript:void(0)" id="mobileChangePwd" role="menuitem">🔑 修改密碼</a>
+            <a class="more-item more-item-danger" href="javascript:void(0)" id="mobileLogout" role="menuitem">⏻ 登出後台</a>
+        </div>
 
         <!-- 主要內容區 -->
         <main class="main-content">

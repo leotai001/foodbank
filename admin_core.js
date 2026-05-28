@@ -249,12 +249,16 @@ window.Core = (function () {
 
     function renderCurrentAdminBadge() {
         refreshCurrentAdmin();
-        const el = document.getElementById('currentAdminInfo');
-        if (!el || !_currentAdmin) return;
+        if (!_currentAdmin) return;
         const roleLabel = _currentAdmin.role === 'super'
             ? '<span style="color:var(--success); font-weight:600;">super</span>'
             : '<span style="color:var(--text-secondary); font-weight:600;">staff</span>';
-        el.innerHTML = `登入中：<strong>${escapeHtml(_currentAdmin.username)}</strong><br>角色：${roleLabel}`;
+        const html = `登入中：<strong>${escapeHtml(_currentAdmin.username)}</strong><br>角色：${roleLabel}`;
+        const el = document.getElementById('currentAdminInfo');
+        if (el) el.innerHTML = html;
+        // 同步手機「更多」彈出選單中的管理員資訊
+        const mEl = document.getElementById('mobileAdminInfo');
+        if (mEl) mEl.innerHTML = html;
     }
 
     function applyRoleVisibility() {
@@ -268,18 +272,85 @@ window.Core = (function () {
     function setupNavigation(handlers) {
         const navItems = document.querySelectorAll('.nav-item');
         const sections = ['dashboardView', 'inventoryView', 'membersView', 'redemptionsView', 'dataView', 'adminManageView'];
-        navItems.forEach(nav => {
-            nav.addEventListener('click', (e) => {
-                navItems.forEach(n => n.classList.remove('active'));
-                e.target.classList.add('active');
-                const targetId = e.target.getAttribute('data-target');
-                sections.forEach(id => {
-                    const el = document.getElementById(id);
-                    if (el) el.classList.toggle('hidden', id !== targetId);
-                });
-                const handler = handlers && handlers[targetId];
-                if (typeof handler === 'function') handler();
+        // 「更多」彈出選單收納的次要分頁：切到這些 view 時，手機 tab bar 要把「更多」標記為 active
+        const moreTargets = new Set(['dataView', 'adminManageView']);
+
+        function switchTo(targetId) {
+            sections.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.classList.toggle('hidden', id !== targetId);
             });
+            // active 狀態：主 tab 直接對應 data-target；若 target 屬於「更多」收納，則把 .nav-more 標 active
+            navItems.forEach(n => {
+                const t = n.getAttribute('data-target');
+                const isMore = n.classList.contains('nav-more');
+                let active = false;
+                if (isMore) active = moreTargets.has(targetId);
+                else active = (t === targetId);
+                n.classList.toggle('active', active);
+            });
+            const handler = handlers && handlers[targetId];
+            if (typeof handler === 'function') handler();
+        }
+
+        navItems.forEach(nav => {
+            // 「更多」按鈕不切視圖，交給 setupMobileMoreMenu 處理
+            if (nav.classList.contains('nav-more')) return;
+            nav.addEventListener('click', (e) => {
+                const targetId = nav.getAttribute('data-target');
+                if (!targetId) return;
+                switchTo(targetId);
+            });
+        });
+
+        // 暴露給「更多」彈出選單使用（彈出項目點擊後切視圖）
+        _navSwitchTo = switchTo;
+    }
+
+    // ---- 手機「更多」彈出選單 ----
+    let _navSwitchTo = null;
+    function setupMobileMoreMenu() {
+        const moreBtn = document.getElementById('mobileMoreBtn');
+        const menu = document.getElementById('mobileMoreMenu');
+        const backdrop = document.getElementById('mobileMoreBackdrop');
+        if (!moreBtn || !menu || !backdrop) return;
+
+        const open = () => {
+            menu.hidden = false;
+            backdrop.hidden = false;
+            document.addEventListener('keydown', onKey, true);
+        };
+        const close = () => {
+            menu.hidden = true;
+            backdrop.hidden = true;
+            document.removeEventListener('keydown', onKey, true);
+        };
+        const onKey = (e) => { if (e.key === 'Escape') close(); };
+
+        moreBtn.addEventListener('click', () => {
+            (menu.hidden ? open : close)();
+        });
+        backdrop.addEventListener('click', close);
+
+        // 彈出選單內的分頁項目 → 切視圖 + 關閉
+        menu.querySelectorAll('[data-more-target]').forEach(item => {
+            item.addEventListener('click', () => {
+                const target = item.getAttribute('data-more-target');
+                if (target && typeof _navSwitchTo === 'function') _navSwitchTo(target);
+                close();
+            });
+        });
+
+        // 彈出選單內的「修改密碼 / 登出」→ 觸發既有按鈕邏輯
+        const mPwd = document.getElementById('mobileChangePwd');
+        const mLogout = document.getElementById('mobileLogout');
+        if (mPwd) mPwd.addEventListener('click', () => {
+            close();
+            document.getElementById('changeMyPwdBtn')?.click();
+        });
+        if (mLogout) mLogout.addEventListener('click', () => {
+            close();
+            document.getElementById('adminLogoutBtn')?.click();
         });
     }
 
@@ -361,10 +432,19 @@ window.Core = (function () {
         }
         refreshCurrentAdmin();
 
-        document.getElementById('adminLogoutBtn').addEventListener('click', () => logoutAndRedirect());
+        document.getElementById('adminLogoutBtn').addEventListener('click', async () => {
+            const ok = await confirmDialog('確定要登出後台嗎？', {
+                title: '登出確認',
+                confirmText: '登出',
+                cancelText: '取消',
+                type: 'danger'
+            });
+            if (ok) logoutAndRedirect();
+        });
         renderCurrentAdminBadge();
         startIdleWatcher();
         setupCrossTabSync();
+        setupMobileMoreMenu();
 
         if (typeof onReady === 'function') onReady();
     }

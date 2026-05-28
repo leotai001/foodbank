@@ -25,6 +25,9 @@ body {
   background-color: var(--bg-color);
   color: var(--text-primary);
   line-height: 1.6;
+  /* 鎖住觸控縮放：禁用雙擊放大，僅保留滾動 / 點擊。pinch zoom 由 viewport meta 鎖住 */
+  touch-action: manipulation;
+  -webkit-text-size-adjust: 100%; /* iOS 切換橫直向時自動放大文字 → 關掉 */
 }
 
 h1, h2, h3, h4 {
@@ -137,6 +140,82 @@ a { text-decoration: none; color: var(--primary-color); }
   border-left-color: var(--primary-color);
 }
 
+/* 桌機預設：icon 在前小尺寸 inline、長標籤顯示、短標籤隱藏 */
+.nav-icon { display: inline-block; margin-right: 0.45rem; }
+.nav-label { display: inline; }
+.nav-label-short { display: none; }
+
+/* 桌機預設隱藏「更多」按鈕、彈出選單、遮罩、手機頂部標題列、手機版登出 tab — 僅手機顯示 */
+.nav-more, .more-menu, .more-backdrop, .mobile-topbar, .nav-logout-mobile { display: none; }
+
+/* 桌機側邊欄底部按鈕區（會員端登出按鈕用） */
+.sidebar-action {
+  margin-top: 2rem;
+  padding: 0 1.5rem;
+}
+
+/* 桌機側邊欄底部區塊（admin info + 修改密碼 + 登出） */
+.sidebar-footer {
+  margin-top: 2rem;
+  padding: 0 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+/* 「更多」彈出選單樣式（手機才會 display:block） */
+.more-menu {
+  position: fixed;
+  left: 0;
+  right: 0;
+  background: var(--card-bg);
+  border-top: 1px solid var(--border-color);
+  border-top-left-radius: 16px;
+  border-top-right-radius: 16px;
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.12);
+  z-index: 99;
+  padding: 0.75rem 0.5rem calc(0.75rem + env(safe-area-inset-bottom, 0px)) 0.5rem;
+  animation: slideUp 0.18s ease-out;
+}
+.more-menu[hidden] { display: none; }
+@keyframes slideUp {
+  from { transform: translateY(100%); opacity: 0.6; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+.more-item {
+  display: block;
+  padding: 0.85rem 1rem;
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+.more-item:hover, .more-item:active { background: #f1f5f9; }
+.more-item-danger { color: var(--danger); }
+.more-divider {
+  height: 1px;
+  background: var(--border-color);
+  margin: 0.5rem 0;
+}
+.more-info {
+  padding: 0.5rem 1rem 0.25rem;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+.more-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.3);
+  z-index: 98;
+  animation: fadeIn 0.18s ease-out;
+}
+.more-backdrop[hidden] { display: none; }
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
 /* UI Elements */
 .card {
   background: var(--card-bg);
@@ -239,6 +318,29 @@ input:focus, select:focus {
   letter-spacing: 0.1em;
   font-weight: bold;
 }
+
+/* 密碼欄顯示/隱藏切換（手機友善） */
+/* 隱藏 Edge / IE 內建的密碼顯示眼睛按鈕，避免與自訂的「顯示/隱藏」文字按鈕重複 */
+input[type="password"]::-ms-reveal,
+input[type="password"]::-ms-clear { display: none; }
+.password-field { position: relative; }
+.password-field > input { padding-right: 3rem; }
+.password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 0.5rem;
+  transform: translateY(-50%);
+  width: auto;
+  padding: 0.25rem 0.4rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--primary-color);
+}
+.password-toggle:hover { background: none; transform: translateY(-50%); text-decoration: underline; }
 
 /* Tables */
 .table-responsive {
@@ -358,6 +460,15 @@ tr:hover td {
   font-weight: 500;
 }
 
+/* 點數頁的統計卡：強制三個並排（不受 stats-grid auto-fit 影響） */
+#pointsHistoryView .stats-grid {
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+}
+#pointsHistoryView .stat-card { padding: 1rem 0.75rem; text-align: center; }
+#pointsHistoryView .stat-value { font-size: 1.5rem; margin-bottom: 0.25rem; }
+#pointsHistoryView .stat-label { font-size: 0.8rem; line-height: 1.3; }
+
 /* Chart Container */
 .chart-container {
   position: relative;
@@ -372,12 +483,120 @@ tr:hover td {
 }
 
 @media (max-width: 768px) {
+  /* 整體縮小：降低根字級，所有用 rem 的元件會等比縮小（桌機 16px → 手機 14px ≈ 縮 12.5%） */
+  html { font-size: 14px; }
+
   .app-container { flex-direction: column; }
-  .sidebar { width: 100%; border-right: none; border-bottom: 1px solid var(--border-color); flex-direction: row; }
-  .sidebar-nav { display: flex; overflow-x: auto; padding: 0; align-items: center; }
-  .nav-item { border-left: none; border-bottom: 3px solid transparent; white-space: nowrap; padding: 1rem; }
-  .nav-item:hover, .nav-item.active { border-bottom-color: var(--primary-color); }
-  .dashboard-charts { grid-template-columns: 1fr; }
+  /* 側邊欄改為固定在畫面最下方的原生風 bottom tab bar */
+  .sidebar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    border-right: none;
+    border-top: 1px solid var(--border-color);
+    flex-direction: row;
+    background: var(--card-bg);
+    z-index: 100;
+    box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.08);
+    padding-bottom: env(safe-area-inset-bottom, 0px); /* iPhone home indicator 留空 */
+  }
+  .sidebar-header { display: none; } /* 標題在底部 tab bar 不需要 */
+  .sidebar-nav {
+    display: flex;
+    padding: 0;
+    align-items: stretch;
+    width: 100%;
+    overflow: visible; /* 5 等寬不需要橫向滾動 */
+  }
+  /* 手機隱藏：次要分頁（資料管理 / 管理員管理）、後台底部按鈕區、會員端原本的桌機登出按鈕區 */
+  .sidebar-nav .nav-secondary,
+  .sidebar-footer,
+  .sidebar-action { display: none; }
+  /* 手機顯示「更多」按鈕、會員端登出 tab */
+  .nav-more, .nav-logout-mobile { display: flex !important; }
+
+  /* 5 等寬 tab，icon 上 / 標籤下 */
+  .nav-item {
+    flex: 1 1 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.15rem;
+    padding: 0.45rem 0.25rem 0.5rem;
+    border-left: none;
+    border-top: 2px solid transparent;
+    border-bottom: none;
+    line-height: 1.1;
+    text-align: center;
+  }
+  /* 手機：icon 變大、置中、無 inline margin；長標籤隱藏、短標籤顯示 */
+  .nav-icon { margin-right: 0; font-size: 1.4rem; line-height: 1.1; }
+  .nav-label { display: none; }
+  .nav-label-short { display: block; font-size: 0.7rem; font-weight: 500; line-height: 1.1; }
+  .nav-item:hover, .nav-item.active {
+    background-color: transparent;
+    border-top-color: var(--primary-color);
+    border-bottom-color: transparent;
+  }
+  .nav-item.active .nav-label-short { font-weight: 600; }
+
+  /* 彈出選單顯示位置：在底部 tab bar 之上 */
+  .more-menu { display: block; bottom: calc(56px + env(safe-area-inset-bottom, 0px)); }
+  .more-backdrop { display: block; }
+  .more-menu[hidden], .more-backdrop[hidden] { display: none; }
+
+  /* 手機頂部標題列：sticky 固定在畫面最上方 */
+  .mobile-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: sticky;
+    top: 0;
+    z-index: 90;
+    padding: 0.75rem 1rem;
+    background: var(--card-bg);
+    border-bottom: 1px solid var(--border-color);
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: var(--primary-color);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  }
+  .dashboard-charts { grid-template-columns: 1fr; gap: 1rem; }
+
+  /* 間距收斂：手機螢幕窄，縮小 padding/margin 爭取內容空間 */
+  /* padding-bottom 多預留空間給底部 tab bar，避免內容被遮住 */
+  .main-content { padding: 0.85rem 0.85rem 5rem 0.85rem; }
+  .card { padding: 0.9rem; margin-bottom: 0.85rem; }
+  .card-title { font-size: 1rem; margin-bottom: 0.85rem; }
+  .header-bar { margin-bottom: 1rem; }
+  .stats-grid { gap: 0.75rem; margin-bottom: 1rem; }
+  .stat-card { padding: 0.9rem; }
+  /* 手機點數頁：進一步縮小三欄統計卡 */
+  #pointsHistoryView .stats-grid { gap: 0.5rem; }
+  #pointsHistoryView .stat-card { padding: 0.55rem 0.3rem; }
+  #pointsHistoryView .stat-value { font-size: 1.15rem; margin-bottom: 0.1rem; }
+  #pointsHistoryView .stat-label { font-size: 0.65rem; line-height: 1.25; }
+  th, td { padding: 0.5rem 0.45rem; font-size: 0.85rem; }
+  .auth-card { padding: 1.5rem 1.1rem; }
+  .chart-container { height: 240px; }
+  .btn { padding: 0.55rem 0.9rem; font-size: 0.9rem; }
+  h1 { font-size: 1.4rem; }
+  h2 { font-size: 1.15rem; }
+  h3 { font-size: 1rem; }
+}
+
+/* 超小螢幕（一般手機直向）再緊縮一級 */
+@media (max-width: 480px) {
+  html { font-size: 13px; }
+  .main-content { padding: 0.7rem; }
+  .card { padding: 0.8rem; margin-bottom: 0.7rem; }
+  .auth-card { padding: 1.25rem 0.9rem; }
+  th, td { padding: 0.45rem 0.35rem; font-size: 0.8rem; }
+  .chart-container { height: 220px; }
 }
 
 /* Report Tabs */
