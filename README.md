@@ -68,9 +68,10 @@
 ├── 會員端 (index.html)
 │   ├── 登入驗證（電話 + 密碼）
 │   ├── 首次登入強制設定流程
-│   ├── 會員條碼顯示（CODE128）
+│   ├── 會員條碼顯示（CODE128，可點擊全螢幕）
 │   ├── 點數餘額查詢
-│   └── 個人資料維護
+│   ├── 點數異動明細（依月份篩選）
+│   └── 個人資料維護（改密需驗證原密碼）
 │
 ├── 管理後台 (admin.html)
 │   ├── 📊 資料統計（全覽 / 年報 / 月報 / 日報 / 自訂區間）
@@ -110,7 +111,7 @@ index.html  ──登入成功──►  index.html（會員中心）
 
 #### 📊 資料統計
 
-提供四種時間維度的報表切換（頁籤式），所有圖表使用 Chart.js 渲染。
+提供五種維度的報表切換（全覽 / 年報 / 月報 / 日報 / 自訂區間，頁籤式），所有圖表使用 Chart.js 渲染。
 
 **全覽（Overview）**
 
@@ -255,7 +256,7 @@ index.html  ──登入成功──►  index.html（會員中心）
 - 發放 1,000 初始點數並記入 Log
 - 設定為首次登入狀態（會員首次登入需自行設定密碼）
 
-**密碼還原**：將指定會員密碼重設為其手機號碼，下次登入後建議自行修改。
+**密碼還原**：清除指定會員密碼並標記為「首次登入」，該會員下次登入時須重新設定新密碼才能進入會員中心（並非重設為手機號碼）。
 
 **兌換紀錄查閱**：點擊「紀錄」開啟 Modal，顯示該會員所有兌換明細（時間、物品、分類、扣點），依時間倒序排列。
 
@@ -398,9 +399,10 @@ index.html  ──登入成功──►  index.html（會員中心）
 - 列表顯示最近登入時間
 
 **安全機制**
-- 所有密碼以 SHA-256 雜湊儲存
-- Session Token 隨機產生 32 bytes，以 hash 比對
+- 所有密碼以**加鹽（salted）SHA-256** 雜湊儲存（每帳號獨立隨機 salt，格式 `salt$hash`）；舊版明文或無 salt 的雜湊於登入驗證成功後自動升級
+- Session Token 隨機產生 32 bytes，原始 token 存 `sessionStorage`、僅以 SHA-256 hash 存於 localStorage 比對；設 24 小時硬性上限
 - 閒置 30 分鐘自動登出（任何鍵盤 / 滑鼠 / 觸控操作會重設計時）
+- 多分頁同步：其他分頁登出或大量資料變更時會即時提示
 
 ---
 
@@ -424,15 +426,24 @@ index.html  ──登入成功──►  index.html（會員中心）
 
 #### 會員中心功能
 
+採手機原生風格底部 tab bar 導覽（桌機為頂部導覽），分為三個分頁：
+
 **專屬兌換區**
-- 顯示 CODE128 格式會員條碼（SVG，供掃描槍讀取）
+- 顯示 CODE128 格式會員條碼（SVG，供掃描槍讀取）；條碼寬度依視窗自適應，點擊可開啟黑底全螢幕大條碼方便掃描
 - 顯示目前剩餘點數（大字顯示）
-- 列出所有兌換紀錄（兌換時間、物品名稱、扣除點數），依時間倒序排列
+- 列出最近 10 筆兌換紀錄（兌換時間、物品名稱、扣除點數），依時間倒序排列
+
+**點數異動明細**
+- 依月份篩選（近 12 個月，預設當月）
+- 統計卡片：當月補點 / 發放、扣點 / 兌換、異動次數
+- 明細表：時間、兌換物品、異動點數、類型（初始發放 / 補點 / 扣點 / 兌換核銷）、備註
 
 **個人資料設定**
-- 重新設定密碼（留白代表不更改）
+- 重新設定密碼（留白代表不更改；變更密碼須先輸入目前密碼通過驗證）
 - 修改生日、地址
 - 姓名與電話欄位為唯讀（由管理員管理）
+
+> 密碼欄位皆附「顯示 / 隱藏」切換鈕；登出時會跳出確認對話框。
 
 ---
 
@@ -534,12 +545,14 @@ index.html  ──登入成功──►  index.html（會員中心）
 
 ```jsonc
 {
-  "id": "PL1234567890",   // 記錄 ID（PL + timestamp）
+  "id": "PL1234567890abcd", // 記錄 ID（PL + timestamp + 亂數）
   "memberId": "M001",
   "memberName": "王大明",
-  "delta": -200,          // 異動量（正數=增加，負數=減少）
-  "type": "redeem",       // init / topup / deduct / redeem
-  "note": "兌換：白米 2kg",
+  "delta": -200,            // 異動量（正數=增加，負數=減少）
+  "type": "redeem",         // init / topup / deduct / redeem
+  "itemName": "白米 2kg",   // 兌換物品名稱（redeem 專屬獨立欄位）
+  "itemBarcode": "IT001",   // 兌換物品條碼（redeem 專屬）
+  "note": "",               // 備註（補/扣點原因等；舊資料兌換可能存「兌換：xxx」，前端會自動解析）
   "date": "2026-01-20T10:00:00.000Z"
 }
 ```
@@ -613,11 +626,12 @@ index.html  ──登入成功──►  index.html（會員中心）
 | 儲存 | `localStorage`（瀏覽器本機，約 5–10 MB 上限） |
 | 圖表 | [Chart.js 4.x](https://www.chartjs.org/)（CDN 載入） |
 | 條碼產生 | [JsBarcode 3.11.5](https://github.com/lindell/JsBarcode)（CDN 載入，CODE128 格式） |
-| 密碼雜湊 | Web Crypto API：`crypto.subtle.digest('SHA-256')` |
-| Session | `sessionStorage`（Token 以 SHA-256 hash 比對驗證） |
+| 密碼雜湊 | 加鹽 SHA-256（Web Crypto API `crypto.subtle.digest`），格式 `salt$hash`，每帳號獨立隨機 salt |
+| Session | 原始 Token 存 `sessionStorage`，僅 SHA-256 hash 存 localStorage 比對；24 小時硬性上限 |
 | 後端 | 無（純前端，零依賴） |
 | 字型 | Google Fonts：Inter（CDN 載入，離線時退回 system-ui） |
-| 響應式設計 | Flexbox + CSS Grid，`≤768px` 時側邊欄轉為頂部橫向導覽 |
+| 響應式設計 | Flexbox + CSS Grid；`≤768px` 轉為手機原生風底部 tab bar（後台含「更多」彈出選單） |
+| 無障礙 | 對話框具 focus trap、`role="dialog"` / `aria-modal` / `aria-labelledby`、Esc 關閉、關閉後焦點還原至觸發元素 |
 
 ### 檔案結構
 
@@ -673,8 +687,8 @@ Inv.deductOne ◄── Rd（核銷時的 FEFO 扣抵）
 
 | 措施 | 實作方式 |
 |------|---------|
-| 密碼雜湊 | SHA-256（Web Crypto API），不明文儲存；舊版明文密碼於首次驗證後自動升級（懶遷移） |
-| 管理員 Session | 隨機 32 bytes Token，以 SHA-256 hash 存於 `sessionStorage`，關閉分頁即失效 |
+| 密碼雜湊 | 加鹽 SHA-256（Web Crypto API），每帳號獨立隨機 salt，不明文儲存；舊版明文或無 salt 雜湊於登入驗證成功後自動升級為加鹽格式（懶遷移） |
+| 管理員 Session | 隨機 32 bytes Token；原始值存 `sessionStorage`（關閉分頁即失效），僅以 SHA-256 hash 存於 localStorage 比對，並設 24 小時硬性上限 |
 | XSS 防護 | 所有動態輸出皆通過 `escapeHtml()` 跳脫（`&`, `<`, `>`, `"`, `'`） |
 | 過期帳號攔截 | `status: expired` 的會員於登入時與兌換時雙重攔截 |
 | localStorage 寫入保護 | 所有寫入透過 `safeSetItem()` 捕捉 `QuotaExceededError`，防止靜默失敗 |
@@ -683,7 +697,8 @@ Inv.deductOne ◄── Rd（核銷時的 FEFO 扣抵）
 
 - **所有資料儲存於 `localStorage`**，瀏覽器開發者工具可直接讀取與修改，安全性無法依賴前端機制保障
 - 管理員帳號資料與會員資料存於同一來源，理論上具備 JavaScript 執行環境的使用者皆可存取
-- 無多管理員機制，無操作審計（誰在何時做了什麼）
+- 雖已具備多管理員與操作審計，但審計 Log 同樣存於本機 `localStorage`，可被有本機存取權者竄改或清除
+- 密碼雜湊於前端進行，無伺服器端速率限制，無法防禦本機端的暴力破解
 - **建議**：若需正式對外服務，遷移至真實後端（Node.js / Python + PostgreSQL / SQLite）並以 HTTPS 提供服務
 
 ---
