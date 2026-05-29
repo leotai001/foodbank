@@ -803,21 +803,6 @@ window.Inv = (function () {
     return {
         init, render, renderFilters, renderInventoryLog,
         // 給 Redemption 模組共用：以 FEFO 扣 1 件
-        deductOne,
-        // 暴露給 Dashboard 用
-        countExpiringSoon: function (days) {
-            const now = new Date();
-            const limit = new Date(now.getTime() + days * 86400000);
-            let count = 0;
-            getInventory().forEach(item => {
-                if (!item.batches || item.batches.length === 0) return;
-                for (const b of item.batches) {
-                    if (!b.expiryDate || b.quantity <= 0) continue;
-                    const exp = new Date(b.expiryDate + 'T23:59:59');
-                    if (exp <= limit) { count++; return; }
-                }
-            });
-            return count;
-        }
+        deductOne
     };
 })();

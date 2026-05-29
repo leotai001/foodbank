@@ -321,15 +321,17 @@ window.Mem = (function () {
             if (!note) { errEl.textContent = '請填寫異動原因'; errEl.style.display = 'block'; return; }
 
             const members  = getMembers();
+            // 以 Map 取代逐筆 findIndex，避免全選時 O(選取數 × 會員數)
+            const memberById = new Map(members.map(m => [m.id, m]));
             const type     = amount > 0 ? 'topup' : 'deduct';
             const affected = _selectedMemberIds.size;
             _selectedMemberIds.forEach(id => {
-                const idx = members.findIndex(m => m.id === id);
-                if (idx === -1) return;
-                const newPts     = Math.max(0, members[idx].points + amount);
-                const actualDelta = newPts - members[idx].points;
-                members[idx].points = newPts;
-                logPointChange(id, members[idx].name, actualDelta, type, `批量${amount > 0 ? '補點' : '扣點'}：${note}`);
+                const m = memberById.get(id);
+                if (!m) return;
+                const newPts      = Math.max(0, m.points + amount);
+                const actualDelta = newPts - m.points;
+                m.points = newPts;
+                logPointChange(id, m.name, actualDelta, type, `批量${amount > 0 ? '補點' : '扣點'}：${note}`);
             });
             saveMembers(members);
             logAdminAction('MEMBER_BATCH_TOPUP', `${affected} 位會員`, `${amount > 0 ? '+' : ''}${amount} 點：${note}`);

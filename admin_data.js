@@ -247,11 +247,12 @@ window.DataMgr = (function () {
             Core.downloadCsv(`會員清單_${Core.todayStr()}.csv`, headers, rows);
         });
         document.getElementById('exportRedemptionsBtn').addEventListener('click', () => {
-            const members = getMembers();
+            // 以 Map 取代逐列 members.find，避免 O(兌換筆數 × 會員數)
+            const memberById = new Map(getMembers().map(m => [m.id, m]));
             const rows = getRedemptions()
                 .sort((a, b) => new Date(a.date) - new Date(b.date))
                 .map(r => {
-                    const m = members.find(x => x.id === r.memberId);
+                    const m = memberById.get(r.memberId);
                     return [r.id, Core.fmtDateTime(r.date), r.memberId, m ? m.name : r.memberId, r.itemBarcode || '', r.itemName, r.category || '', r.pointsCost];
                 });
             Core.downloadCsv(`兌換紀錄_${Core.todayStr()}.csv`,

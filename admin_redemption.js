@@ -94,13 +94,14 @@ window.Rd = (function () {
     }
 
     function renderHistory() {
-        const search  = document.getElementById('redemptionSearchInput').value.trim().toLowerCase();
-        const members = getMembers();
-        const all     = getRedemptions().sort((a, b) => new Date(b.date) - new Date(a.date));
+        const search    = document.getElementById('redemptionSearchInput').value.trim().toLowerCase();
+        // 以 Map 取代逐列 members.find，避免 O(兌換筆數 × 會員數)
+        const memberById = new Map(getMembers().map(m => [m.id, m]));
+        const all        = getRedemptions().sort((a, b) => new Date(b.date) - new Date(a.date));
 
         const filtered = all.filter(r => {
             if (!search) return true;
-            const m = members.find(x => x.id === r.memberId);
+            const m = memberById.get(r.memberId);
             const name = m ? m.name.toLowerCase() : r.memberId.toLowerCase();
             return name.includes(search) || r.itemName.toLowerCase().includes(search);
         });
@@ -109,7 +110,7 @@ window.Rd = (function () {
         const tb = document.getElementById('redemptionTableBody');
 
         tb.innerHTML = display.map(r => {
-            const m   = members.find(x => x.id === r.memberId);
+            const m   = memberById.get(r.memberId);
             const cat = Core.resolveCategory(r);
             const cc  = Core.getCatColor(cat);
             return `<tr>

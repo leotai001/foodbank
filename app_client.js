@@ -3,35 +3,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const firstLoginSection = document.getElementById('firstLoginSection');
     const memberSection = document.getElementById('memberSection');
 
-    // 確認 Dialog（Promise-based，與後台 Core.confirm 行為一致；resolve true = 確認 / false = 取消）
-    function confirmDialog(message, { title = '確認', confirmText = '確認', cancelText = '取消', type = 'default' } = {}) {
-        return new Promise(resolve => {
-            const overlay = document.createElement('div');
-            overlay.className = 'modal-overlay active';
-            const okClass = type === 'danger' ? 'btn btn-danger' : 'btn';
-            overlay.innerHTML = `
-                <div class="modal-content" style="max-width: 420px;">
-                    <div class="modal-header" style="margin-bottom:1rem;"><h3>${escapeHtml(title)}</h3></div>
-                    <div style="line-height:1.7; margin-bottom:1.5rem; white-space:pre-wrap;">${escapeHtml(message)}</div>
-                    <div style="display:flex; gap:0.75rem; justify-content:flex-end; flex-wrap:wrap;">
-                        <button type="button" class="btn btn-outline _dlg-cancel">${escapeHtml(cancelText)}</button>
-                        <button type="button" class="${okClass} _dlg-ok">${escapeHtml(confirmText)}</button>
-                    </div>
-                </div>
-            `;
-            document.body.appendChild(overlay);
-            const cleanup = (v) => { document.removeEventListener('keydown', onKey, true); overlay.remove(); resolve(v); };
-            const onKey = (e) => {
-                if (e.key === 'Escape') { e.stopPropagation(); cleanup(false); }
-                else if (e.key === 'Enter') { e.stopPropagation(); cleanup(true); }
-            };
-            document.addEventListener('keydown', onKey, true);
-            overlay.querySelector('._dlg-ok').addEventListener('click', () => cleanup(true));
-            overlay.querySelector('._dlg-cancel').addEventListener('click', () => cleanup(false));
-            overlay.addEventListener('click', (e) => { if (e.target === overlay) cleanup(false); });
-            setTimeout(() => overlay.querySelector('._dlg-ok').focus(), 50);
-        });
-    }
+    // 確認 Dialog 已抽至 data.js 的共用 confirmDialog（與後台 Core.confirm 同一份實作）
 
     // 條碼 RWD：依視窗寬度動態調整 width，避免長條碼在手機被截斷
     let _currentBarcodeValue = null;

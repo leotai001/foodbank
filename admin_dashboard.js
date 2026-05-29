@@ -279,7 +279,8 @@ window.Dash = (function () {
         const dateStr = document.getElementById('dailyReportDate').value;
         if (!dateStr) return;
 
-        const members     = getMembers();
+        // 以 Map 取代逐列 members.find，避免 O(兌換筆數 × 會員數)
+        const memberById  = new Map(getMembers().map(m => [m.id, m]));
         const redemptions = getRedemptions()
             .filter(r => {
                 const d = new Date(r.date);
@@ -311,7 +312,7 @@ window.Dash = (function () {
         tbody.innerHTML = redemptions.map(r => {
             const d    = new Date(r.date);
             const time = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
-            const m    = members.find(x => x.id === r.memberId);
+            const m    = memberById.get(r.memberId);
             const cat  = Core.resolveCategory(r);
             const cc   = Core.getCatColor(cat);
             return `<tr>

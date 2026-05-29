@@ -265,6 +265,102 @@ function escapeHtml(str) {
         .replace(/'/g, '&#039;');
 }
 
+// ---- Modal 焦點管理（focus trap + 還原）共用工具 ----
+// 供 _buildDialog（動態對話框）與 Core.openModal（靜態 modal）共用。
+const FOCUSABLE_SELECTOR = 'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+// 取得 container 內目前可聚焦（且可見）的元素
+function getFocusableElements(container) {
+    return Array.from(container.querySelectorAll(FOCUSABLE_SELECTOR))
+        .filter(el => el.offsetWidth > 0 || el.offsetHeight > 0 || el === document.activeElement);
+}
+
+// 在 container 內建立 Tab / Shift+Tab 循環鎖；回傳 detach 函式
+// 每次 Tab 即時重算可聚焦元素，因此能正確處理 modal 內 show/hide 的區塊。
+function trapFocus(container) {
+    const onKey = (e) => {
+        if (e.key !== 'Tab') return;
+        const f = getFocusableElements(container);
+        if (f.length === 0) return;
+        const first = f[0], last = f[f.length - 1];
+        if (e.shiftKey && (document.activeElement === first || !container.contains(document.activeElement))) {
+            e.preventDefault(); last.focus();
+        } else if (!e.shiftKey && (document.activeElement === last || !container.contains(document.activeElement))) {
+            e.preventDefault(); first.focus();
+        }
+    };
+    container.addEventListener('keydown', onKey);
+    return () => container.removeEventListener('keydown', onKey);
+}
+
+// ---- 共用對話框（Promise-based，會員端與後台共用）----
+// 動態建立 overlay，沿用既有 .modal-overlay / .modal-content 樣式。
+// confirm 回傳 true/false；alert 隱藏取消鈕、resolve 後回傳 undefined。
+// 無障礙：role=dialog + aria-modal + aria-labelledby（指向標題）；focus trap；關閉後焦點還原至觸發元素。
+// 鍵盤：Esc = 取消；初始焦點預設在主按鈕（danger 類型改放「取消」以降低誤觸），Enter 由聚焦按鈕原生觸發。
+let _dialogSeq = 0;
+function _buildDialog({ title, message, confirmText, cancelText, type, hideCancel }) {
+    return new Promise(resolve => {
+        const prevFocus = document.activeElement;
+        const titleId = 'dialog-title-' + (++_dialogSeq);
+        const overlay = document.createElement('div');
+        overlay.className = 'modal-overlay active';
+        const safeTitle   = escapeHtml(title || (hideCancel ? '提示' : '確認'));
+        const safeMessage = escapeHtml(message || '');
+        const okClass     = type === 'danger' ? 'btn btn-danger' : 'btn';
+        overlay.innerHTML = `
+            <div class="modal-content" style="max-width: 440px;" role="dialog" aria-modal="true" aria-labelledby="${titleId}">
+                <div class="modal-header" style="margin-bottom:1rem;">
+                    <h3 id="${titleId}">${safeTitle}</h3>
+                </div>
+                <div style="line-height:1.7; margin-bottom:1.5rem; white-space:pre-wrap; color:var(--text-primary);">${safeMessage}</div>
+                <div style="display:flex; gap:0.75rem; justify-content:flex-end; flex-wrap:wrap;">
+                    ${hideCancel ? '' : `<button type="button" class="btn btn-outline js-dialog-cancel">${escapeHtml(cancelText || '取消')}</button>`}
+                    <button type="button" class="${okClass} js-dialog-ok">${escapeHtml(confirmText || '確認')}</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(overlay);
+
+        const dialog = overlay.querySelector('.modal-content');
+        const detachTrap = trapFocus(dialog);
+
+        const cleanup = (result) => {
+            document.removeEventListener('keydown', onKey, true);
+            detachTrap();
+            overlay.remove();
+            // 還原焦點至開啟前的觸發元素
+            if (prevFocus && typeof prevFocus.focus === 'function') {
+                try { prevFocus.focus(); } catch (e) { /* 元素可能已移除 */ }
+            }
+            resolve(result);
+        };
+        // Esc = 取消；Enter 改由聚焦的按鈕原生觸發，避免 danger 對話框被 Enter 誤確認
+        const onKey = (e) => {
+            if (e.key === 'Escape') { e.stopPropagation(); cleanup(false); }
+        };
+        document.addEventListener('keydown', onKey, true);
+
+        overlay.querySelector('.js-dialog-ok').addEventListener('click', () => cleanup(true));
+        const cancelBtn = overlay.querySelector('.js-dialog-cancel');
+        if (cancelBtn) cancelBtn.addEventListener('click', () => cleanup(false));
+        // 點背景關閉（視為取消）
+        overlay.addEventListener('click', (e) => { if (e.target === overlay) cleanup(false); });
+
+        // 初始焦點：danger 預設「取消」降低誤觸；其餘預設「確認」
+        setTimeout(() => {
+            const target = (type === 'danger' && cancelBtn) ? cancelBtn : overlay.querySelector('.js-dialog-ok');
+            if (target) target.focus();
+        }, 50);
+    });
+}
+function confirmDialog(message, options = {}) {
+    return _buildDialog({ message, hideCancel: false, ...options });
+}
+function alertDialog(message, options = {}) {
+    return _buildDialog({ message, hideCancel: true, ...options }).then(() => undefined);
+}
+
 // ---- Auth ----
 async function loginUser(phone, password) {
     const members = getMembers();

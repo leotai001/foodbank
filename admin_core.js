@@ -20,59 +20,65 @@ window.Core = (function () {
         { bg: '#fef9c3', text: '#713f12' },
     ];
 
-    // ---- Modal helpers ----
-    const openModal  = (id) => document.getElementById(id).classList.add('active');
-    const closeModal = (id) => document.getElementById(id).classList.remove('active');
+    // ---- Modal helpers（含無障礙：role/aria、focus trap、焦點還原、Esc 關閉）----
+    // 焦點工具 trapFocus / getFocusableElements 來自 data.js（會員端與後台共用）。
+    const _modalReturnFocus = {}; // id -> 開啟前的觸發元素
+    const _modalTrapDetach  = {}; // id -> focus trap 解除函式
+    const _modalEscHandler  = {}; // id -> Esc 監聽器
 
-    // ---- Confirm / Alert Modal（非阻塞、Promise-based）----
-    // 動態建立 overlay，沿用既有 .modal-overlay / .modal-content 樣式
-    function _buildDialog({ title, message, confirmText, cancelText, type, hideCancel }) {
-        return new Promise(resolve => {
-            const overlay = document.createElement('div');
-            overlay.className = 'modal-overlay active core-dialog-overlay';
-            const safeTitle   = escapeHtml(title || (hideCancel ? '提示' : '確認'));
-            const safeMessage = escapeHtml(message || '');
-            const okClass     = type === 'danger' ? 'btn btn-danger' : 'btn';
-            overlay.innerHTML = `
-                <div class="modal-content" style="max-width: 440px;">
-                    <div class="modal-header" style="margin-bottom:1rem;">
-                        <h3>${safeTitle}</h3>
-                    </div>
-                    <div style="line-height:1.7; margin-bottom:1.5rem; white-space:pre-wrap; color:var(--text-primary);">${safeMessage}</div>
-                    <div style="display:flex; gap:0.75rem; justify-content:flex-end; flex-wrap:wrap;">
-                        ${hideCancel ? '' : `<button type="button" class="btn btn-outline core-dialog-cancel">${escapeHtml(cancelText || '取消')}</button>`}
-                        <button type="button" class="${okClass} core-dialog-ok">${escapeHtml(confirmText || '確認')}</button>
-                    </div>
-                </div>
-            `;
-            document.body.appendChild(overlay);
+    function openModal(id) {
+        const overlay = document.getElementById(id);
+        if (!overlay) return;
+        const content = overlay.querySelector('.modal-content') || overlay;
 
-            const cleanup = (result) => {
-                document.removeEventListener('keydown', onKey, true);
-                overlay.remove();
-                resolve(result);
-            };
-            const onKey = (e) => {
-                if (e.key === 'Escape')      { e.stopPropagation(); cleanup(false); }
-                else if (e.key === 'Enter')  { e.stopPropagation(); cleanup(true); }
-            };
-            document.addEventListener('keydown', onKey, true);
+        // role / aria 標記（讓螢幕閱讀器宣告為對話框並讀出標題）
+        content.setAttribute('role', 'dialog');
+        content.setAttribute('aria-modal', 'true');
+        const titleEl = content.querySelector('.modal-header h3') || content.querySelector('h3');
+        if (titleEl) {
+            if (!titleEl.id) titleEl.id = id + '-title';
+            content.setAttribute('aria-labelledby', titleEl.id);
+        }
+        content.setAttribute('tabindex', '-1');
 
-            overlay.querySelector('.core-dialog-ok').addEventListener('click', () => cleanup(true));
-            const cancelBtn = overlay.querySelector('.core-dialog-cancel');
-            if (cancelBtn) cancelBtn.addEventListener('click', () => cleanup(false));
-            // 點背景關閉（視為取消）
-            overlay.addEventListener('click', (e) => { if (e.target === overlay) cleanup(false); });
+        // 記住觸發焦點，供關閉時還原
+        _modalReturnFocus[id] = document.activeElement;
 
-            setTimeout(() => overlay.querySelector('.core-dialog-ok').focus(), 50);
-        });
+        overlay.classList.add('active');
+
+        // focus trap：把 Tab 循環鎖在 modal 內
+        _modalTrapDetach[id] = trapFocus(content);
+
+        // Esc 關閉：優先點 close-btn（保留 setupModalClose 的攔截邏輯），否則直接關閉
+        const onEsc = (e) => {
+            if (e.key !== 'Escape') return;
+            e.stopPropagation();
+            const closeBtn = overlay.querySelector(`.close-btn[data-modal="${id}"]`);
+            if (closeBtn) closeBtn.click();
+            else closeModal(id);
+        };
+        _modalEscHandler[id] = onEsc;
+        overlay.addEventListener('keydown', onEsc);
+
+        // 初始焦點放在對話框容器，讓螢幕閱讀器宣告標題；
+        // 若呼叫端隨後自行 focus（如掃碼框），會在之後覆蓋此焦點。
+        setTimeout(() => { try { content.focus(); } catch (e) {} }, 0);
     }
-    function confirmDialog(message, options = {}) {
-        return _buildDialog({ message, hideCancel: false, ...options });
+
+    function closeModal(id) {
+        const overlay = document.getElementById(id);
+        if (!overlay) return;
+        overlay.classList.remove('active');
+        if (_modalTrapDetach[id]) { _modalTrapDetach[id](); delete _modalTrapDetach[id]; }
+        if (_modalEscHandler[id]) { overlay.removeEventListener('keydown', _modalEscHandler[id]); delete _modalEscHandler[id]; }
+        const ret = _modalReturnFocus[id];
+        delete _modalReturnFocus[id];
+        if (ret && typeof ret.focus === 'function') { try { ret.focus(); } catch (e) { /* 元素可能已移除 */ } }
     }
-    function alertDialog(message, options = {}) {
-        return _buildDialog({ message, hideCancel: true, ...options }).then(() => undefined);
-    }
+
+    // ---- Confirm / Alert Modal ----
+    // 共用實作已抽至 data.js 的 confirmDialog / alertDialog（會員端與後台共用），
+    // 此處僅透過 Core.confirm / Core.alert 對外暴露（見模組 return）。
 
     // ---- Toast 通知 ----
     function ensureToastHost() {
@@ -223,25 +229,6 @@ window.Core = (function () {
         });
     }
 
-    // 舊版 parseCsvRow：保留以維持對外 API 相容（單列 CSV，內部不再使用）
-    function parseCsvRow(line) {
-        const cells = [];
-        let i = 0, cur = '';
-        while (i < line.length) {
-            if (line[i] === '"') {
-                i++;
-                while (i < line.length) {
-                    if (line[i] === '"' && line[i + 1] === '"') { cur += '"'; i += 2; }
-                    else if (line[i] === '"') { i++; break; }
-                    else { cur += line[i++]; }
-                }
-            } else if (line[i] === ',') { cells.push(cur); cur = ''; i++; }
-            else { cur += line[i++]; }
-        }
-        cells.push(cur);
-        return cells;
-    }
-
     // ---- 目前管理員 / 權限 ----
     function refreshCurrentAdmin() { _currentAdmin = getCurrentAdmin(); return _currentAdmin; }
     function isSuper() { return _currentAdmin && _currentAdmin.role === 'super'; }
@@ -364,7 +351,7 @@ window.Core = (function () {
                     const result = await intercept();
                     if (result === false) return;
                 }
-                document.getElementById(modalId).classList.remove('active');
+                closeModal(modalId);
             });
         });
     }
@@ -458,7 +445,7 @@ window.Core = (function () {
         drawChart, drawPie, buildStatCard, trendBadge,
         getCatColor, resolveCategory, clearCatCache,
         getAvailableYears,
-        escapeCsvCell, downloadCsv, parseCsvText, parseCsvRow,
+        escapeCsvCell, downloadCsv, parseCsvText,
         LOW_STOCK_THRESHOLD, CAT_PALETTE
     };
 })();
