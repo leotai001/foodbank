@@ -28,6 +28,7 @@
     <script src="data.js"></script>
     <script src="admin_core.js"></script>
     <script src="admin_inventory.js"></script>
+    <script src="admin_dashboard.js"></script>
 
     <script>
     (function () {
@@ -328,6 +329,100 @@
             });
             it('純文字不變', () => {
                 assertEq(escapeHtml('王大明'), '王大明');
+            });
+        });
+
+        describe('debounce（Core.debounce）', () => {
+            it('多次快速呼叫只在停止後執行一次', async () => {
+                let calls = 0;
+                const fn = Core.debounce(() => calls++, 30);
+                fn(); fn(); fn();
+                assertEq(calls, 0); // 尚未到時間
+                await new Promise(r => setTimeout(r, 60));
+                assertEq(calls, 1); // 三次合併為一次
+            });
+            it('傳入最後一次的參數', async () => {
+                let last = null;
+                const fn = Core.debounce((v) => { last = v; }, 20);
+                fn('a'); fn('b'); fn('c');
+                await new Promise(r => setTimeout(r, 50));
+                assertEq(last, 'c');
+            });
+            it('cancel() 可取消尚未觸發的呼叫', async () => {
+                let calls = 0;
+                const fn = Core.debounce(() => calls++, 20);
+                fn(); fn.cancel();
+                await new Promise(r => setTimeout(r, 50));
+                assertEq(calls, 0);
+            });
+        });
+
+        describe('Dashboard overview 彙總（Dash.computeOverviewStats）', () => {
+            const DAY = 86400000;
+            const iso = (daysAgo) => new Date(Date.now() - daysAgo * DAY).toISOString();
+
+            it('總計：筆數與核銷點數', () => {
+                const s = Dash.computeOverviewStats(
+                    [{ id: 'M1' }, { id: 'M2' }],
+                    [{ memberId: 'M1', pointsCost: 100, date: iso(1) },
+                     { memberId: 'M2', pointsCost: 250, date: iso(2) }],
+                    []
+                );
+                assertEq(s.totalMembers, 2);
+                assertEq(s.totalRedemptions, 2);
+                assertEq(s.totalPointsSpent, 350);
+            });
+            it('RFM 分群：活躍 / 沉睡 / 流失 / 從未', () => {
+                const s = Dash.computeOverviewStats(
+                    [{ id: 'A' }, { id: 'B' }, { id: 'C' }, { id: 'D' }],
+                    [{ memberId: 'A', pointsCost: 10, date: iso(5)   },  // 活躍 (<=30)
+                     { memberId: 'B', pointsCost: 10, date: iso(60)  },  // 沉睡 (31–90)
+                     { memberId: 'C', pointsCost: 10, date: iso(200) }], // 流失 (>90)
+                    []
+                );
+                assertEq(s.rfmActive, 1);
+                assertEq(s.rfmDormant, 1);
+                assertEq(s.rfmLost, 1);
+                assertEq(s.rfmNever, 1); // D 從未兌換
+            });
+            it('RFM 取會員最近一次兌換判定', () => {
+                const s = Dash.computeOverviewStats(
+                    [{ id: 'A' }],
+                    [{ memberId: 'A', pointsCost: 10, date: iso(200) },  // 舊
+                     { memberId: 'A', pointsCost: 10, date: iso(3)   }], // 新 → 應判活躍
+                    []
+                );
+                assertEq(s.rfmActive, 1);
+                assertEq(s.rfmLost, 0);
+            });
+            it('低庫存數：quantity <= 門檻', () => {
+                const s = Dash.computeOverviewStats([], [], [
+                    { barcode: 'X', quantity: 0,  category: 'c' },
+                    { barcode: 'Y', quantity: 5,  category: 'c' },
+                    { barcode: 'Z', quantity: 50, category: 'c' },
+                ]);
+                assertEq(s.lowStockCount, 2); // 0 與 5 都 <= 5
+            });
+            it('30 天內到期品項數（依批號）', () => {
+                const soon = new Date(Date.now() + 10 * DAY).toISOString().split('T')[0];
+                const far  = new Date(Date.now() + 200 * DAY).toISOString().split('T')[0];
+                const s = Dash.computeOverviewStats([], [], [
+                    { barcode: 'X', quantity: 3, category: 'c', batches: [{ batchId: 'B', quantity: 3, expiryDate: soon }] },
+                    { barcode: 'Y', quantity: 3, category: 'c', batches: [{ batchId: 'B', quantity: 3, expiryDate: far }] },
+                    { barcode: 'Z', quantity: 3, category: 'c' }, // 無批號不計
+                ]);
+                assertEq(s.expiringCount, 1);
+            });
+            it('年度核銷點數彙總（yearData）', () => {
+                const s = Dash.computeOverviewStats(
+                    [{ id: 'A' }],
+                    [{ memberId: 'A', pointsCost: 100, date: '2025-03-01T10:00:00' },
+                     { memberId: 'A', pointsCost: 200, date: '2025-06-01T10:00:00' },
+                     { memberId: 'A', pointsCost: 50,  date: '2024-12-01T10:00:00' }],
+                    []
+                );
+                assertEq(s.yearData[2025], 300);
+                assertEq(s.yearData[2024], 50);
             });
         });
 

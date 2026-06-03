@@ -105,6 +105,18 @@ window.Core = (function () {
         }, durationMs);
     }
 
+    // ---- 通用工具 ----
+    // debounce：高頻事件（如搜尋框 input）延遲到停止輸入後才執行，避免每個字元都全表重繪
+    function debounce(fn, wait = 200) {
+        let t = null;
+        const debounced = (...args) => {
+            clearTimeout(t);
+            t = setTimeout(() => fn.apply(null, args), wait);
+        };
+        debounced.cancel = () => clearTimeout(t);
+        return debounced;
+    }
+
     // ---- 時間格式 ----
     function fmtDisp(isoStr) {
         const d = new Date(isoStr);
@@ -441,6 +453,7 @@ window.Core = (function () {
         isSuper, getCurrent, refreshCurrentAdmin, renderCurrentAdminBadge, applyRoleVisibility,
         openModal, closeModal, toast,
         confirm: confirmDialog, alert: alertDialog,
+        debounce,
         fmtDisp, fmtDateTime, todayStr,
         drawChart, drawPie, buildStatCard, trendBadge,
         getCatColor, resolveCategory, clearCatCache,

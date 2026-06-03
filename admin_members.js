@@ -275,8 +275,8 @@ window.Mem = (function () {
     }
 
     function init() {
-        // 搜尋
-        document.getElementById('memSearchInput').addEventListener('input', render);
+        // 搜尋（高頻輸入，debounce 後再全表重繪）
+        document.getElementById('memSearchInput').addEventListener('input', Core.debounce(render, 200));
 
         // 全選
         document.getElementById('selectAllMembers').addEventListener('change', (e) => {

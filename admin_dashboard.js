@@ -40,84 +40,111 @@ window.Dash = (function () {
         if (customEnd)   customEnd.addEventListener('change', renderCustomReport);
     }
 
+    // ---- Overview 彙總（純計算，無 DOM）----
+    // 遍歷全部 redemptions / members / inventory 的成本集中在此；結果以「資料版本 + 當日」記憶化。
+    // 註：RFM 與到期數量與「現在時間」相關，但只到「日」的粒度，故 memo key 帶上 todayStr 即可在跨日時自動失效。
+    function computeOverviewStats(members, redemptions, inventory) {
+        const yearData  = {};
+        const monthData = Array(12).fill(0);
+        const redCatMap = {};
+        const invCatMap = {};
+
+        inventory.forEach(i => {
+            const cat = i.category || '未分類';
+            invCatMap[cat] = (invCatMap[cat] || 0) + i.quantity;
+        });
+
+        const now = Date.now();
+        const currentYear = new Date(now).getFullYear();
+        const lastRedeemMap = new Map();
+        let totalPointsSpent = 0;
+        redemptions.forEach(r => {
+            const t = new Date(r.date).getTime();
+            const y = new Date(t).getFullYear();
+            const cat = Core.resolveCategory(r);
+            totalPointsSpent += r.pointsCost;
+            yearData[y] = (yearData[y] || 0) + r.pointsCost;
+            if (y === currentYear) monthData[new Date(t).getMonth()] += 1;
+            redCatMap[cat] = (redCatMap[cat] || 0) + 1;
+            if (!lastRedeemMap.has(r.memberId) || t > lastRedeemMap.get(r.memberId)) {
+                lastRedeemMap.set(r.memberId, t);
+            }
+        });
+
+        // RFM 會員分群
+        let rfmActive = 0, rfmDormant = 0, rfmLost = 0, rfmNever = 0;
+        members.forEach(m => {
+            const lastTime = lastRedeemMap.get(m.id);
+            if (lastTime === undefined) rfmNever++;
+            else {
+                const daysSince = (now - lastTime) / (1000 * 60 * 60 * 24);
+                if (daysSince <= 30) rfmActive++;
+                else if (daysSince <= 90) rfmDormant++;
+                else rfmLost++;
+            }
+        });
+
+        return {
+            totalMembers: members.length,
+            totalRedemptions: redemptions.length,
+            totalPointsSpent,
+            lowStockCount: inventory.filter(i => i.quantity <= Core.LOW_STOCK_THRESHOLD).length,
+            expiringCount: countExpiringSoon(inventory, 30),
+            invCatMap, redCatMap, yearData, monthData,
+            rfmActive, rfmDormant, rfmLost, rfmNever
+        };
+    }
+
+    // 記憶化：資料未變動（且仍是同一天）時，重用上次彙總結果，避免重新遍歷全部紀錄
+    let _overviewMemo = { key: null, stats: null };
+    function getOverviewStats() {
+        const key = [
+            getDataVersion(DB_MEMBERS_KEY),
+            getDataVersion(DB_REDEMPTIONS_KEY),
+            getDataVersion(DB_INVENTORY_KEY),
+            Core.todayStr()
+        ].join('|');
+        if (_overviewMemo.key !== key) {
+            _overviewMemo = { key, stats: computeOverviewStats(getMembers(), getRedemptions(), getInventory()) };
+        }
+        return _overviewMemo.stats;
+    }
+
     function render() {
         try {
-            const members     = getMembers();
-            const redemptions = getRedemptions();
-            const inventory   = getInventory();
+            const s = getOverviewStats();
 
-            document.getElementById('totalMembers').textContent      = members.length;
-            document.getElementById('totalRedemptions').textContent  = redemptions.length;
-            document.getElementById('totalPointsSpent').textContent  = redemptions.reduce((s,r)=>s+r.pointsCost,0).toLocaleString();
-            document.getElementById('lowStockCount').textContent     = inventory.filter(i => i.quantity <= Core.LOW_STOCK_THRESHOLD).length;
+            document.getElementById('totalMembers').textContent      = s.totalMembers;
+            document.getElementById('totalRedemptions').textContent  = s.totalRedemptions;
+            document.getElementById('totalPointsSpent').textContent  = s.totalPointsSpent.toLocaleString();
+            document.getElementById('lowStockCount').textContent     = s.lowStockCount;
 
             // #3 30 天內到期品項數量（若有 expiringCount 容器則填）
             const expiringEl = document.getElementById('expiringCount');
-            if (expiringEl) expiringEl.textContent = countExpiringSoon(inventory, 30);
+            if (expiringEl) expiringEl.textContent = s.expiringCount;
 
-            const yearData  = {};
-            const monthData = Array(12).fill(0);
-            const redCatMap = {};
-            const invCatMap = {};
-
-            inventory.forEach(i => {
-                const cat = i.category || '未分類';
-                invCatMap[cat] = (invCatMap[cat] || 0) + i.quantity;
-            });
-
-            const currentYear = new Date().getFullYear();
-            redemptions.forEach(r => {
-                const date = new Date(r.date);
-                const y = date.getFullYear();
-                const cat = Core.resolveCategory(r);
-                if (!yearData[y]) yearData[y] = 0;
-                yearData[y] += r.pointsCost;
-                if (y === currentYear) monthData[date.getMonth()] += 1;
-                redCatMap[cat] = (redCatMap[cat] || 0) + 1;
-            });
-
-            Core.drawPie('invCategoryPieChart', invCatMap);
-            Core.drawPie('redemptionPieChart', redCatMap);
+            Core.drawPie('invCategoryPieChart', s.invCatMap);
+            Core.drawPie('redemptionPieChart', s.redCatMap);
 
             Core.drawChart('yearlyChart', 'bar', {
-                labels: Object.keys(yearData),
-                datasets: [{ label: '核銷點數', data: Object.values(yearData), backgroundColor: '#3b82f6', borderRadius: 4 }]
+                labels: Object.keys(s.yearData),
+                datasets: [{ label: '核銷點數', data: Object.values(s.yearData), backgroundColor: '#3b82f6', borderRadius: 4 }]
             });
             Core.drawChart('monthlyChart', 'line', {
                 labels: ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'],
-                datasets: [{ label: '兌換筆數', data: monthData, fill: true, borderColor: '#10b981', backgroundColor: 'rgba(16, 185, 129, 0.1)', tension: 0.4 }]
+                datasets: [{ label: '兌換筆數', data: s.monthData, fill: true, borderColor: '#10b981', backgroundColor: 'rgba(16, 185, 129, 0.1)', tension: 0.4 }]
             });
 
-            // RFM 會員分群
-            const now = new Date();
-            let rfmActive = 0, rfmDormant = 0, rfmLost = 0, rfmNever = 0;
-            const lastRedeemMap = new Map();
-            redemptions.forEach(r => {
-                const t = new Date(r.date).getTime();
-                if (!lastRedeemMap.has(r.memberId) || t > lastRedeemMap.get(r.memberId)) {
-                    lastRedeemMap.set(r.memberId, t);
-                }
-            });
-            members.forEach(m => {
-                const lastTime = lastRedeemMap.get(m.id);
-                if (lastTime === undefined) rfmNever++;
-                else {
-                    const daysSince = (now - lastTime) / (1000 * 60 * 60 * 24);
-                    if (daysSince <= 30) rfmActive++;
-                    else if (daysSince <= 90) rfmDormant++;
-                    else rfmLost++;
-                }
-            });
             document.getElementById('rfmStats').innerHTML =
-                Core.buildStatCard(rfmActive,  '活躍 (30天內兌換)', 'var(--success)') +
-                Core.buildStatCard(rfmDormant, '沉睡 (31–90天)',    '#f59e0b') +
-                Core.buildStatCard(rfmLost,    '流失 (90天以上)',  'var(--danger)') +
-                Core.buildStatCard(rfmNever,   '從未兌換',         'var(--text-secondary)');
+                Core.buildStatCard(s.rfmActive,  '活躍 (30天內兌換)', 'var(--success)') +
+                Core.buildStatCard(s.rfmDormant, '沉睡 (31–90天)',    '#f59e0b') +
+                Core.buildStatCard(s.rfmLost,    '流失 (90天以上)',  'var(--danger)') +
+                Core.buildStatCard(s.rfmNever,   '從未兌換',         'var(--text-secondary)');
             const rfmMap = {};
-            if (rfmActive)  rfmMap['活躍']    = rfmActive;
-            if (rfmDormant) rfmMap['沉睡']    = rfmDormant;
-            if (rfmLost)    rfmMap['流失']    = rfmLost;
-            if (rfmNever)   rfmMap['從未兌換'] = rfmNever;
+            if (s.rfmActive)  rfmMap['活躍']    = s.rfmActive;
+            if (s.rfmDormant) rfmMap['沉睡']    = s.rfmDormant;
+            if (s.rfmLost)    rfmMap['流失']    = s.rfmLost;
+            if (s.rfmNever)   rfmMap['從未兌換'] = s.rfmNever;
             Core.drawPie('rfmPieChart', rfmMap);
 
             renderPointsLog();
@@ -399,5 +426,5 @@ window.Dash = (function () {
         else if (_currentReportTab === 'custom')   { initCustomReport();      renderCustomReport();   }
     }
 
-    return { init, render, renderActiveReport, renderPointsLog };
+    return { init, render, renderActiveReport, renderPointsLog, computeOverviewStats };
 })();

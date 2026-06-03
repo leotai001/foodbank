@@ -488,8 +488,8 @@ window.Inv = (function () {
 
     // ===== init() =====
     function init() {
-        // 搜尋與篩選
-        document.getElementById('invSearchInput').addEventListener('input', render);
+        // 搜尋與篩選（搜尋為高頻輸入，debounce 後再全表重繪；分類篩選為低頻，立即套用）
+        document.getElementById('invSearchInput').addEventListener('input', Core.debounce(render, 200));
         document.getElementById('invCategoryFilter').addEventListener('change', render);
 
         // 入庫 Log 展開

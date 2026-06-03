@@ -83,6 +83,12 @@ function initDB() {
 // 注意：跨分頁不會自動同步；如需多視窗同步，待後續導入 storage 事件處理。
 const _cache = Object.create(null);
 
+// 資料版本計數：每次寫入或 invalidate 對應 key 即 +1。
+// 供衍生彙總（如 Dashboard overview）做記憶化判斷：版本未變即可重用上次結果。
+const _dataVersion = Object.create(null);
+function _bumpVersion(key) { _dataVersion[key] = (_dataVersion[key] || 0) + 1; }
+function getDataVersion(key) { return _dataVersion[key] || 0; }
+
 function _readKey(key, fallback) {
     if (_cache[key] !== undefined) return _cache[key];
     try {
@@ -95,13 +101,16 @@ function _readKey(key, fallback) {
 }
 function _writeKey(key, value) {
     _cache[key] = value;
+    _bumpVersion(key);
     return safeSetItem(key, JSON.stringify(value));
 }
 function _invalidateCache(key) {
     if (key === undefined) {
         for (const k of Object.keys(_cache)) delete _cache[k];
+        for (const k of Object.keys(_dataVersion)) _bumpVersion(k);
     } else {
         delete _cache[key];
+        _bumpVersion(key);
     }
 }
 
